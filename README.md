@@ -201,6 +201,7 @@ Everything runs in Docker:
 docker compose run --rm dev npm install
 docker compose run --rm dev npm test            # SQLite
 docker compose up -d --wait postgres mysql
+bash scripts/load-mysql-tz.sh                    # MySQL named timezones (for tz tests)
 docker compose run --rm -e PG_HOST=postgres -e MYSQL_HOST=mysql dev npm test
 ```
 

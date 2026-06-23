@@ -26,8 +26,8 @@ jobs:
       - name: Start databases (Postgres + MySQL)
         run: docker compose up -d --wait postgres mysql
 
-      - name: Load MySQL timezone tables
-        run: docker compose exec -T mysql sh -c 'mysql_tzinfo_to_sql /usr/share/zoneinfo | mysql -uroot -proot mysql'
+      - name: Load MySQL timezone tables (zones used by tests)
+        run: bash scripts/load-mysql-tz.sh
 
       - name: Test (SQLite + Postgres + MySQL)
         run: docker compose run --rm -e PG_HOST=postgres -e MYSQL_HOST=mysql dev npm test

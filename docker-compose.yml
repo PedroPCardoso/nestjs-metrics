@@ -46,10 +46,9 @@ services:
   mysql:
     image: mysql:8
     # MySQL CONVERT_TZ() needs the named timezone tables loaded, or it returns
-    # NULL silently (see docs/ARCHITECTURE.md §6.8). The init script loads them
-    # on a fresh data directory; CI also loads them explicitly as a safety net.
-    volumes:
-      - ./docker/mysql-init:/docker-entrypoint-initdb.d:ro
+    # NULL silently (see docs/ARCHITECTURE.md §6.8). After the container is up,
+    # run `bash scripts/load-mysql-tz.sh` (CI does too) to load the zones the
+    # tests use — loading the full zoneinfo can crash mysql:8 ("Lost connection").
     environment:
       - MYSQL_ROOT_PASSWORD=root
       - MYSQL_USER=metrics
