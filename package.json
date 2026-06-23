@@ -32,10 +32,12 @@
     "./nestjs": {
       "require": "./dist/nestjs/index.js",
       "types": "./dist/nestjs/index.d.ts"
-    }
+    },
+    "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "nestjs"
   ],
   "engines": {
     "node": ">=18"
