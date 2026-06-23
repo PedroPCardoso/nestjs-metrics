@@ -35,6 +35,9 @@ jobs:
       - name: Build
         run: docker compose run --rm dev npm run build
 
+      - name: Consumer smoke (packed tarball in a fresh CJS project)
+        run: docker compose run --rm dev npm run smoke
+
       - name: Stop databases
         if: always()
         run: docker compose down -v
