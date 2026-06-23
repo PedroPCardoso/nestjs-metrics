@@ -27,14 +27,16 @@ export class TrendsFormatter {
   }
 }
 
-/** Convert a series to percentages of its total (0 when the total is 0). */
-export function toPercent(result: TrendsResult): TrendsResult {
-  const total = result.data.reduce((sum, value) => sum + value, 0);
+/** Convert an array of values to percentages of their total (unchanged if 0). */
+export function percentArray(data: number[]): number[] {
+  const total = data.reduce((sum, value) => sum + value, 0);
   if (total === 0) {
-    return result;
+    return data;
   }
-  return {
-    labels: result.labels,
-    data: result.data.map((value) => Math.round((value / total) * 100 * 100) / 100),
-  };
+  return data.map((value) => Math.round((value / total) * 100 * 100) / 100);
+}
+
+/** Convert a series to percentages of its total (unchanged when the total is 0). */
+export function toPercent(result: TrendsResult): TrendsResult {
+  return { labels: result.labels, data: percentArray(result.data) };
 }

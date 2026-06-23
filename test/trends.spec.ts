@@ -42,10 +42,11 @@ describe.each(allTestDrivers())('trends() count by month on %s', (driver: TestDr
     expect(result.labels).toContain('March');
     expect(result.labels).not.toContain('February');
 
+    const data = result.data as number[];
     const jan = result.labels.indexOf('January');
     const mar = result.labels.indexOf('March');
-    expect(result.data[jan]).toBe(2);
-    expect(result.data[mar]).toBe(1);
+    expect(data[jan]).toBe(2);
+    expect(data[mar]).toBe(1);
   });
 
   it('returns empty labels and data when no rows match', async () => {

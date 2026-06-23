@@ -2,30 +2,39 @@ import { TrendsResult } from '../types';
 import { RawTrendRow } from './trends.formatter';
 
 /**
+ * The continuous integer bucket axis [min .. max] covered by the present rows.
+ * Shared by single-series and grouped fill so the axis is computed one way.
+ */
+export function presentIntegerLabels(rows: RawTrendRow[]): number[] {
+  if (rows.length === 0) {
+    return [];
+  }
+  const ints = rows.map((row) => Number(row.label));
+  const min = Math.min(...ints);
+  const max = Math.max(...ints);
+  const out: number[] = [];
+  for (let n = min; n <= max; n++) {
+    out.push(n);
+  }
+  return out;
+}
+
+/**
  * Fill gaps in a period series at the raw (pre-format) stage: enumerate every
  * integer bucket between the smallest and largest present bucket, inserting the
  * default value where there is no row. Operating on raw integer labels avoids
  * collisions that formatted labels (e.g. weekday names) could introduce.
  */
 export function gapFillRaw(rows: RawTrendRow[], missingValue: number): RawTrendRow[] {
-  if (rows.length === 0) {
-    return [];
-  }
-
   const present = new Map<number, number>();
   for (const row of rows) {
     present.set(Number(row.label), Number(row.data));
   }
 
-  const labels = [...present.keys()];
-  const min = Math.min(...labels);
-  const max = Math.max(...labels);
-
-  const out: RawTrendRow[] = [];
-  for (let n = min; n <= max; n++) {
-    out.push({ label: n, data: present.has(n) ? (present.get(n) as number) : missingValue });
-  }
-  return out;
+  return presentIntegerLabels(rows).map((n) => ({
+    label: n,
+    data: present.has(n) ? (present.get(n) as number) : missingValue,
+  }));
 }
 
 /**

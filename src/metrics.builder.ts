@@ -6,9 +6,14 @@ import { DatePart, SqlDialect } from './dialects/sql-dialect.interface';
 import { PeriodResolver } from './dates/period-resolver';
 import { enumerateBuckets } from './dates/bucket-series';
 import { LabelFormatter } from './formatting/label-formatter';
-import { RawTrendRow, TrendsFormatter, toPercent } from './formatting/trends.formatter';
-import { gapFillRaw, populate } from './formatting/missing-data';
-import { MetricsOptions, TrendsResult } from './types';
+import {
+  RawTrendRow,
+  TrendsFormatter,
+  percentArray,
+  toPercent,
+} from './formatting/trends.formatter';
+import { gapFillRaw, populate, presentIntegerLabels } from './formatting/missing-data';
+import { GroupedTrendsResult, MetricsOptions, TrendsResult } from './types';
 
 const DEFAULT_LOCALE = 'en';
 
@@ -36,6 +41,8 @@ export class MetricsBuilder<T extends ObjectLiteral> {
   private fill = false;
   private missingValue = 0;
   private missingLabels: (string | number)[] = [];
+  private groupedLabels: (string | number)[] = [];
+  private groupedAggregate: Aggregate = Aggregate.SUM;
   private now = new Date();
   private year: number = this.now.getFullYear();
   private month: number = this.now.getMonth() + 1;
@@ -110,6 +117,19 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     this.fill = true;
     this.missingValue = missingValue;
     this.missingLabels = missingLabels;
+    return this;
+  }
+
+  /**
+   * Split the aggregate column into one data series per value, for a stacked /
+   * multi-series chart. Each series counts the rows matching that value per
+   * bucket (`aggregate(CASE WHEN column = value THEN 1 ELSE 0 END)`), and
+   * `total` carries the main aggregate per bucket. The result of trends()
+   * becomes a GroupedTrendsResult.
+   */
+  groupData(labels: (string | number)[], aggregate: Aggregate = Aggregate.SUM): this {
+    this.groupedLabels = labels;
+    this.groupedAggregate = aggregate;
     return this;
   }
 
@@ -346,7 +366,11 @@ export class MetricsBuilder<T extends ObjectLiteral> {
   }
 
   /** Generate a chart-ready time series. Empty when there is no data. */
-  async trends(inPercent = false): Promise<TrendsResult> {
+  async trends(inPercent = false): Promise<TrendsResult | GroupedTrendsResult> {
+    if (this.groupedLabels.length > 0) {
+      return this.groupedTrends(inPercent);
+    }
+
     const rows = await this.trendsData();
     const formatter = new TrendsFormatter(new LabelFormatter(this.locale));
     const ctx = { year: this.year, month: this.month };
@@ -387,15 +411,70 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     return rows.map((row) => row.label);
   }
 
+  /** Build the multi-series GroupedTrendsResult for groupData(). */
+  private async groupedTrends(inPercent: boolean): Promise<GroupedTrendsResult> {
+    const rows = await this.trendsData();
+    const byLabel = new Map(rows.map((row) => [String(row.label), row]));
+    const canonical = await this.groupedCanonical(rows);
+
+    const labelFormatter = new LabelFormatter(this.locale);
+    const ctx = { year: this.year, month: this.month };
+    const labelPeriod = this.labelColumnName || this.range ? null : this.period;
+    const labels = canonical.map((label) => labelFormatter.format(label, labelPeriod, ctx));
+
+    const seriesFor = (field: string): number[] => {
+      const values = canonical.map((label) => {
+        const row = byLabel.get(String(label)) as Record<string, unknown> | undefined;
+        return row ? Number(row[field]) : this.missingValue;
+      });
+      return inPercent ? percentArray(values) : values;
+    };
+
+    const data: GroupedTrendsResult['data'] = { total: seriesFor('data') };
+    this.groupedLabels.forEach((label, i) => {
+      data[String(label)] = seriesFor(`data${i}`);
+    });
+
+    return { labels, data };
+  }
+
+  /** Canonical raw labels (shared by every series) for grouped trends. */
+  private async groupedCanonical(rows: RawTrendRow[]): Promise<(string | number)[]> {
+    if (!this.fill) {
+      return rows.map((row) => row.label as string | number);
+    }
+    if (this.range || this.labelColumnName) {
+      return this.canonicalLabels();
+    }
+    // Date period: integer buckets from the smallest to the largest present.
+    return presentIntegerLabels(rows);
+  }
+
   private async trendsData(): Promise<RawTrendRow[]> {
     const qb = this.qb.clone();
     qb.select(this.dialect.aggregate(this.aggregateFn, this.column), 'data')
       .addSelect(this.labelExpr(), 'label')
       .groupBy('label')
       .orderBy('label', 'ASC');
+    this.applyGroupedData(qb);
     this.applyFilters(qb);
 
     return qb.getRawMany<RawTrendRow>();
+  }
+
+  /**
+   * Add one CASE-based aggregate per group label, so each trend row carries a
+   * `data{i}` column with the per-group value. Group values are bound as
+   * parameters (never interpolated).
+   */
+  private applyGroupedData(qb: SelectQueryBuilder<T>): void {
+    this.groupedLabels.forEach((value, i) => {
+      const key = `nm_g${i}`;
+      qb.addSelect(
+        `${this.groupedAggregate}(CASE WHEN ${this.column} = :${key} THEN 1 ELSE 0 END)`,
+        `data${i}`,
+      ).setParameter(key, value);
+    });
   }
 
   /** The SQL expression used as the grouped trend label. */
