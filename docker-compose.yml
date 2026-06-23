@@ -55,10 +55,13 @@ services:
       - MYSQL_PASSWORD=metrics
       - MYSQL_DATABASE=metrics
     healthcheck:
-      test: ['CMD-SHELL', 'mysqladmin ping -h localhost -u metrics -pmetrics --silent']
+      # Use TCP + root so the check only passes once the REAL server is up with
+      # the root password applied (a socket ping passes against the temp init
+      # server too, racing the tz-table load).
+      test: ['CMD-SHELL', 'mysql -h 127.0.0.1 -uroot -proot -e "SELECT 1" >/dev/null 2>&1']
       interval: 3s
       timeout: 5s
-      retries: 30
+      retries: 40
 
 volumes:
   node_modules:
