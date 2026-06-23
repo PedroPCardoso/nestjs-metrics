@@ -31,8 +31,12 @@
       "optional": true
     }
   },
+  "dependencies": {
+    "luxon": "^3"
+  },
   "devDependencies": {
     "@nestjs/common": "^10",
+    "@types/luxon": "^3",
     "@types/node": "^20",
     "@typescript-eslint/eslint-plugin": "^7",
     "@typescript-eslint/parser": "^7",

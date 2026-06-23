@@ -3,15 +3,21 @@ import { Aggregate } from './enums/aggregate.enum';
 import { Period } from './enums/period.enum';
 import { dialectFor } from './dialects/dialect.factory';
 import { SqlDialect } from './dialects/sql-dialect.interface';
+import { LabelFormatter } from './formatting/label-formatter';
+import { RawTrendRow, TrendsFormatter } from './formatting/trends.formatter';
+import { MetricsOptions, TrendsResult } from './types';
+
+const DEFAULT_LOCALE = 'en';
 
 /**
  * Fluent builder that turns a TypeORM SelectQueryBuilder into chart-ready
  * metrics and trends. The chain is synchronous; only the terminal methods
- * (metrics) execute against the database and are async.
+ * (metrics, trends) execute against the database and are async.
  */
 export class MetricsBuilder<T extends ObjectLiteral> {
   private readonly table: string;
   private readonly dialect: SqlDialect;
+  private readonly locale: string;
   private aggregateFn: Aggregate = Aggregate.COUNT;
   private column: string;
   private dateColumn: string;
@@ -20,9 +26,13 @@ export class MetricsBuilder<T extends ObjectLiteral> {
   private windowCount = 0;
   private year: number = new Date().getFullYear();
 
-  constructor(private readonly qb: SelectQueryBuilder<T>) {
+  constructor(
+    private readonly qb: SelectQueryBuilder<T>,
+    options: MetricsOptions = {},
+  ) {
     this.table = qb.alias;
     this.dialect = dialectFor(qb.connection.options.type);
+    this.locale = options.locale ?? DEFAULT_LOCALE;
     this.column = this.qualify('id');
     this.dateColumn = this.qualify('created_at');
   }
@@ -36,8 +46,11 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     return `${this.table}.${column}`;
   }
 
-  static query<T extends ObjectLiteral>(qb: SelectQueryBuilder<T>): MetricsBuilder<T> {
-    return new MetricsBuilder(qb);
+  static query<T extends ObjectLiteral>(
+    qb: SelectQueryBuilder<T>,
+    options?: MetricsOptions,
+  ): MetricsBuilder<T> {
+    return new MetricsBuilder(qb, options);
   }
 
   count(column = 'id'): this {
@@ -61,6 +74,32 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     const raw = await qb.getRawOne<{ data: unknown }>();
     const data = raw?.data;
     return data === null || data === undefined ? 0 : Number(data);
+  }
+
+  /** Generate a chart-ready time series. Empty when there is no data. */
+  async trends(): Promise<TrendsResult> {
+    const rows = await this.trendsData();
+    const formatter = new TrendsFormatter(new LabelFormatter(this.locale));
+    return formatter.format(rows, this.period);
+  }
+
+  private async trendsData(): Promise<RawTrendRow[]> {
+    const qb = this.qb.clone();
+    qb.select(this.dialect.aggregate(this.aggregateFn, this.column), 'data')
+      .addSelect(this.labelExpr(), 'label')
+      .groupBy('label')
+      .orderBy('label', 'ASC');
+    this.applyPeriod(qb);
+
+    return qb.getRawMany<RawTrendRow>();
+  }
+
+  /** The SQL expression used as the grouped trend label for the current period. */
+  private labelExpr(): string {
+    if (this.period === Period.MONTH) {
+      return this.dialect.periodExpr('month', this.dateColumn);
+    }
+    return this.dateColumn;
   }
 
   private applyPeriod(qb: SelectQueryBuilder<T>): void {
