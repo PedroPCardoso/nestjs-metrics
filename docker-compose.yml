@@ -1,8 +1,10 @@
 # All dev tasks run inside Docker. Usage:
 #   docker compose run --rm dev npm install
-#   docker compose run --rm dev npm test
-#   docker compose run --rm dev npm run typecheck
-#   docker compose run --rm dev npm run build
+#   docker compose run --rm dev npm test            # SQLite only
+#
+# Multi-dialect (real Postgres + MySQL), e.g. in CI:
+#   docker compose up -d --wait postgres mysql
+#   docker compose run --rm -e PG_HOST=postgres -e MYSQL_HOST=mysql dev npm test
 services:
   dev:
     build:
@@ -16,6 +18,49 @@ services:
       - node_modules:/app/node_modules
     environment:
       - CI=true
+      # Empty by default → SQLite-only. Set to the service names to enable
+      # the multi-dialect gate (see header).
+      - PG_HOST=${PG_HOST:-}
+      - PG_PORT=5432
+      - PG_USER=metrics
+      - PG_PASSWORD=metrics
+      - PG_DATABASE=metrics
+      - MYSQL_HOST=${MYSQL_HOST:-}
+      - MYSQL_PORT=3306
+      - MYSQL_USER=metrics
+      - MYSQL_PASSWORD=metrics
+      - MYSQL_DATABASE=metrics
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=metrics
+      - POSTGRES_PASSWORD=metrics
+      - POSTGRES_DB=metrics
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U metrics']
+      interval: 3s
+      timeout: 5s
+      retries: 20
+
+  mysql:
+    image: mysql:8
+    # TIMEZONE HOOK (#10): MySQL CONVERT_TZ() needs the named timezone tables
+    # loaded, or it returns NULL silently (see docs/ARCHITECTURE.md §6.8).
+    # They are NOT loaded yet — the timezone-aware bucketing slice (#10) will
+    # provision them, e.g. via an init script in /docker-entrypoint-initdb.d
+    # running `mysql_tzinfo_to_sql /usr/share/zoneinfo | mysql mysql`.
+    # Until then, only offset-based / UTC behaviour is exercised.
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_USER=metrics
+      - MYSQL_PASSWORD=metrics
+      - MYSQL_DATABASE=metrics
+    healthcheck:
+      test: ['CMD-SHELL', 'mysqladmin ping -h localhost -u metrics -pmetrics --silent']
+      interval: 3s
+      timeout: 5s
+      retries: 30
 
 volumes:
   node_modules:

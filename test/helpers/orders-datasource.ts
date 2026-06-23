@@ -1,5 +1,10 @@
 import 'reflect-metadata';
-import { DataSource, EntitySchema, SelectQueryBuilder } from 'typeorm';
+import {
+  DataSource,
+  DataSourceOptions,
+  EntitySchema,
+  SelectQueryBuilder,
+} from 'typeorm';
 
 /**
  * The `orders` fixture mirrors the table used by the original laravel-metrics
@@ -20,10 +25,13 @@ export const Order = new EntitySchema<OrderRow>({
     id: { type: Number, primary: true, generated: true },
     status: { type: String, default: 'pending' },
     amount: { type: 'decimal', precision: 10, scale: 2, default: 0 },
-    created_at: { type: 'datetime', nullable: true },
-    updated_at: { type: 'datetime', nullable: true },
+    // `Date` lets TypeORM pick the dialect-appropriate timestamp column type.
+    created_at: { type: Date, nullable: true },
+    updated_at: { type: Date, nullable: true },
   },
 });
+
+export type TestDriver = 'better-sqlite3' | 'postgres' | 'mysql';
 
 export interface SeedOrder {
   createdAt: string;
@@ -32,19 +40,60 @@ export interface SeedOrder {
 }
 
 /**
- * Create an in-memory SQLite DataSource with the orders schema initialized.
- * Each call is isolated, so tests never share state.
+ * External database drivers are exercised only when their connection env vars
+ * are present (set by docker compose / CI). Locally, only SQLite runs.
  */
-export async function createOrdersDataSource(): Promise<DataSource> {
-  const dataSource = new DataSource({
-    type: 'better-sqlite3',
-    database: ':memory:',
-    entities: [Order],
-    synchronize: true,
-  });
+export function availableExternalDrivers(): TestDriver[] {
+  const drivers: TestDriver[] = [];
+  if (process.env.PG_HOST) drivers.push('postgres');
+  if (process.env.MYSQL_HOST) drivers.push('mysql');
+  return drivers;
+}
 
+export function allTestDrivers(): TestDriver[] {
+  return ['better-sqlite3', ...availableExternalDrivers()];
+}
+
+function optionsFor(driver: TestDriver): DataSourceOptions {
+  const base = { entities: [Order], synchronize: true };
+
+  switch (driver) {
+    case 'postgres':
+      return {
+        ...base,
+        type: 'postgres',
+        host: process.env.PG_HOST,
+        port: Number(process.env.PG_PORT ?? 5432),
+        username: process.env.PG_USER ?? 'metrics',
+        password: process.env.PG_PASSWORD ?? 'metrics',
+        database: process.env.PG_DATABASE ?? 'metrics',
+      };
+    case 'mysql':
+      return {
+        ...base,
+        type: 'mysql',
+        host: process.env.MYSQL_HOST,
+        port: Number(process.env.MYSQL_PORT ?? 3306),
+        username: process.env.MYSQL_USER ?? 'metrics',
+        password: process.env.MYSQL_PASSWORD ?? 'metrics',
+        database: process.env.MYSQL_DATABASE ?? 'metrics',
+      };
+    default:
+      return { ...base, type: 'better-sqlite3', database: ':memory:' };
+  }
+}
+
+export async function createOrdersDataSource(
+  driver: TestDriver = 'better-sqlite3',
+): Promise<DataSource> {
+  const dataSource = new DataSource(optionsFor(driver));
   await dataSource.initialize();
   return dataSource;
+}
+
+/** Remove all rows so each test starts from a clean table. */
+export async function resetOrders(dataSource: DataSource): Promise<void> {
+  await dataSource.getRepository(Order).clear();
 }
 
 export async function seedOrders(
@@ -62,6 +111,8 @@ export async function seedOrders(
   );
 }
 
-export function ordersQuery(dataSource: DataSource): SelectQueryBuilder<OrderRow> {
+export function ordersQuery(
+  dataSource: DataSource,
+): SelectQueryBuilder<OrderRow> {
   return dataSource.getRepository(Order).createQueryBuilder('orders');
 }

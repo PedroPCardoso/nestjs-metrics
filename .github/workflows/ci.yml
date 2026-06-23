@@ -23,8 +23,15 @@ jobs:
       - name: Typecheck
         run: docker compose run --rm dev npm run typecheck
 
-      - name: Test
-        run: docker compose run --rm dev npm test
+      - name: Start databases (Postgres + MySQL)
+        run: docker compose up -d --wait postgres mysql
+
+      - name: Test (SQLite + Postgres + MySQL)
+        run: docker compose run --rm -e PG_HOST=postgres -e MYSQL_HOST=mysql dev npm test
 
       - name: Build
         run: docker compose run --rm dev npm run build
+
+      - name: Stop databases
+        if: always()
+        run: docker compose down -v

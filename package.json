@@ -38,6 +38,8 @@
     "@typescript-eslint/parser": "^7",
     "better-sqlite3": "^11",
     "eslint": "^8",
+    "mysql2": "^3",
+    "pg": "^8",
     "reflect-metadata": "^0.2",
     "tsup": "^8",
     "typeorm": "^0.3",
