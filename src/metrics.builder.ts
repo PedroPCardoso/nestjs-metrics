@@ -4,8 +4,10 @@ import { Period } from './enums/period.enum';
 import { dialectFor } from './dialects/dialect.factory';
 import { DatePart, SqlDialect } from './dialects/sql-dialect.interface';
 import { PeriodResolver } from './dates/period-resolver';
+import { enumerateBuckets } from './dates/bucket-series';
 import { LabelFormatter } from './formatting/label-formatter';
-import { RawTrendRow, TrendsFormatter } from './formatting/trends.formatter';
+import { RawTrendRow, TrendsFormatter, toPercent } from './formatting/trends.formatter';
+import { gapFillRaw, populate } from './formatting/missing-data';
 import { MetricsOptions, TrendsResult } from './types';
 
 const DEFAULT_LOCALE = 'en';
@@ -31,6 +33,9 @@ export class MetricsBuilder<T extends ObjectLiteral> {
   private groupBy: DatePart = 'day';
   /** Categorical column to group by instead of a date period. */
   private labelColumnName: string | null = null;
+  private fill = false;
+  private missingValue = 0;
+  private missingLabels: (string | number)[] = [];
   private now = new Date();
   private year: number = this.now.getFullYear();
   private month: number = this.now.getMonth() + 1;
@@ -93,6 +98,18 @@ export class MetricsBuilder<T extends ObjectLiteral> {
   /** Group the series by a categorical column instead of by a date period. */
   labelColumn(column: string): this {
     this.labelColumnName = this.qualify(column);
+    return this;
+  }
+
+  /**
+   * Fill gaps in a trend series with a default value (0), auto-discovering the
+   * expected labels. An explicit label set can be supplied for categorical
+   * series.
+   */
+  fillMissingData(missingValue = 0, missingLabels: (string | number)[] = []): this {
+    this.fill = true;
+    this.missingValue = missingValue;
+    this.missingLabels = missingLabels;
     return this;
   }
 
@@ -332,10 +349,42 @@ export class MetricsBuilder<T extends ObjectLiteral> {
   async trends(inPercent = false): Promise<TrendsResult> {
     const rows = await this.trendsData();
     const formatter = new TrendsFormatter(new LabelFormatter(this.locale));
-    // Category (labelColumn) and range labels are already final strings; only
-    // a date period maps a raw bucket value to a translated label.
-    const labelPeriod = this.labelColumnName || this.range ? null : this.period;
-    return formatter.format(rows, labelPeriod, { year: this.year, month: this.month }, inPercent);
+    const ctx = { year: this.year, month: this.month };
+
+    let series: TrendsResult;
+    if (this.fill && this.isPeriodMode()) {
+      // Date periods: fill the integer buckets, then format the labels.
+      series = formatter.format(gapFillRaw(rows, this.missingValue), this.period, ctx);
+    } else {
+      // Category (labelColumn) and range labels are already final strings.
+      const labelPeriod = this.labelColumnName || this.range ? null : this.period;
+      series = formatter.format(rows, labelPeriod, ctx);
+      if (this.fill) {
+        series = populate(await this.canonicalLabels(), series, this.missingValue);
+      }
+    }
+
+    return inPercent ? toPercent(series) : series;
+  }
+
+  /** True when grouping by a date period (not a categorical column or range). */
+  private isPeriodMode(): boolean {
+    return this.period !== null && !this.labelColumnName && !this.range;
+  }
+
+  /** Canonical ordered labels for fillMissingData in range / categorical mode. */
+  private async canonicalLabels(): Promise<(string | number)[]> {
+    if (this.range) {
+      return enumerateBuckets(this.range.start, this.range.end, this.groupBy);
+    }
+    // Categorical (labelColumn): explicit labels, else distinct values.
+    if (this.missingLabels.length > 0) {
+      return this.missingLabels;
+    }
+    const qb = this.qb.clone();
+    qb.select(this.labelColumnName as string, 'label').distinct(true).orderBy('label', 'ASC');
+    const rows = await qb.getRawMany<{ label: string | number }>();
+    return rows.map((row) => row.label);
   }
 
   private async trendsData(): Promise<RawTrendRow[]> {

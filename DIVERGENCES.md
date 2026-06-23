@@ -40,7 +40,20 @@ port makes `groupByDay/Week/Month/Year` genuinely change the SQL bucketing
 granularity of the range (day→`YYYY-MM-DD`, month→`YYYY-MM`, year→`YYYY`,
 week→`IYYY-Www`), which is what the method name implies.
 
-## 5. Private `windowCount` and `dateColumnRef` fields
+## 5. `fillMissingData` uses gap-fill, not a now-relative full period
+
+The original generates the canonical fill labels from `Carbon::now()`-relative
+ranges (e.g. months from January to the *current* month, days of the *current*
+week), which makes the filled axis depend on when the query runs.
+
+This port fills **gaps between the smallest and largest present bucket** for
+date periods (day/week/month/year): data in January and March yields
+`[January, February, March]`. For `between` ranges it enumerates the full
+`[start, end]` at the chosen granularity. For categorical (`labelColumn`)
+series it uses the distinct column values (or an explicit label set). The
+result is deterministic and independent of the current date.
+
+## 6. Private `windowCount` and `dateColumnRef` fields
 
 The original has both a `$count` property (the period window size) and a
 `count()` method (the COUNT aggregate); PHP keeps these in separate namespaces.

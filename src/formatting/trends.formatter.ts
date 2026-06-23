@@ -15,12 +15,7 @@ export interface RawTrendRow {
 export class TrendsFormatter {
   constructor(private readonly labels: LabelFormatter) {}
 
-  format(
-    rows: RawTrendRow[],
-    period: Period | null,
-    ctx: LabelContext,
-    inPercent = false,
-  ): TrendsResult {
+  format(rows: RawTrendRow[], period: Period | null, ctx: LabelContext): TrendsResult {
     const result: TrendsResult = { labels: [], data: [] };
 
     for (const row of rows) {
@@ -28,17 +23,18 @@ export class TrendsFormatter {
       result.data.push(Number(row.data));
     }
 
-    return inPercent ? this.toPercent(result) : result;
+    return result;
   }
+}
 
-  private toPercent(result: TrendsResult): TrendsResult {
-    const total = result.data.reduce((sum, value) => sum + value, 0);
-    if (total === 0) {
-      return result;
-    }
-    return {
-      labels: result.labels,
-      data: result.data.map((value) => Math.round((value / total) * 100 * 100) / 100),
-    };
+/** Convert a series to percentages of its total (0 when the total is 0). */
+export function toPercent(result: TrendsResult): TrendsResult {
+  const total = result.data.reduce((sum, value) => sum + value, 0);
+  if (total === 0) {
+    return result;
   }
+  return {
+    labels: result.labels,
+    data: result.data.map((value) => Math.round((value / total) * 100 * 100) / 100),
+  };
 }
