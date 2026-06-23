@@ -10,3 +10,6 @@ export type {
 } from './types';
 export { InvalidPeriodException } from './exceptions/invalid-period.exception';
 export { InvalidVariationsCountException } from './exceptions/invalid-variations-count.exception';
+export { InvalidAggregateException } from './exceptions/invalid-aggregate.exception';
+export { InvalidDateFormatException } from './exceptions/invalid-date-format.exception';
+export { InvalidIdentifierException } from './exceptions/invalid-identifier.exception';

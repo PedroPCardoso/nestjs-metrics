@@ -4,6 +4,7 @@ import { Aggregate } from './enums/aggregate.enum';
 import { Period } from './enums/period.enum';
 import { InvalidPeriodException } from './exceptions/invalid-period.exception';
 import { InvalidVariationsCountException } from './exceptions/invalid-variations-count.exception';
+import { assertAggregate, assertDateFormat, assertSafeIdentifier } from './validation';
 import { dialectFor } from './dialects/dialect.factory';
 import { DatePart, SqlDialect } from './dialects/sql-dialect.interface';
 import { PeriodResolver } from './dates/period-resolver';
@@ -64,12 +65,18 @@ export class MetricsBuilder<T extends ObjectLiteral> {
   }
 
   /**
-   * Single choke point that turns a bare column name into a table-qualified
-   * identifier. Identifier-safety validation (issue #9) hooks in here so every
-   * consumer-supplied identifier passes through exactly one place.
+   * Single choke point that turns a bare column name into a table-qualified,
+   * driver-escaped identifier. Every consumer-supplied identifier passes through
+   * here: it is validated against the allowlist and then escaped, so it can
+   * never inject SQL (named parameters do not protect identifiers).
    */
   private qualify(column: string): string {
-    return `${this.tableName}.${column}`;
+    assertSafeIdentifier(column);
+    return `${this.escapeId(this.tableName)}.${this.escapeId(column)}`;
+  }
+
+  private escapeId(name: string): string {
+    return this.qb.connection.driver.escape(name);
   }
 
   /**
@@ -96,6 +103,7 @@ export class MetricsBuilder<T extends ObjectLiteral> {
   // --- Aggregates ---------------------------------------------------------
 
   private aggregate(fn: Aggregate, column: string): this {
+    assertAggregate(fn);
     this.aggregateFn = fn;
     this.column = this.qualify(column);
     return this;
@@ -115,6 +123,8 @@ export class MetricsBuilder<T extends ObjectLiteral> {
 
   /** Override the table used to qualify subsequent columns (e.g. a joined table). */
   table(name: string): this {
+    // Stored raw-but-validated; it is driver-escaped each time qualify() runs.
+    assertSafeIdentifier(name);
     this.tableName = name;
     return this;
   }
@@ -145,6 +155,7 @@ export class MetricsBuilder<T extends ObjectLiteral> {
    * becomes a GroupedTrendsResult.
    */
   groupData(labels: (string | number)[], aggregate: Aggregate = Aggregate.SUM): this {
+    assertAggregate(aggregate);
     this.groupedLabels = labels;
     this.groupedAggregate = aggregate;
     return this;
@@ -612,15 +623,6 @@ export class MetricsBuilder<T extends ObjectLiteral> {
       { year: this.year, month: this.month, day: this.day, week: this.week },
       this.windowCount,
     );
-  }
-}
-
-const DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
-
-/** Validate a YYYY-MM-DD date string. (Typed exceptions arrive in #9.) */
-function assertDateFormat(value: string): void {
-  if (!DATE_FORMAT.test(value) || Number.isNaN(Date.parse(value))) {
-    throw new Error(`nestjs-metrics: invalid date "${value}", expected YYYY-MM-DD`);
   }
 }
 

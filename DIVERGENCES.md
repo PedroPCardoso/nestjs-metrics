@@ -67,7 +67,20 @@ Two deliberate changes versus the original:
   type from the signed difference first, then formats the magnitude (as a
   percentage when requested), so decreases stay decreases.
 
-## 7. Private `windowCount` and `dateColumnRef` fields
+## 7. Identifiers are validated and escaped
+
+The original interpolates column/table names directly into raw SQL, trusting
+the developer. This port validates every consumer-supplied identifier
+(`column`, `table`, `dateColumn`, `labelColumn`) against an allowlist
+(`^[a-zA-Z_][a-zA-Z0-9_.]*$`) and then driver-escapes it before it reaches SQL,
+throwing `InvalidIdentifierException` otherwise. Named parameters do not protect
+identifiers, so this closes an injection vector the original left open.
+
+**Recommended usage:** identifiers should still be developer-controlled, not
+taken from end-user input. The allowlist is a safety net, not a license to pass
+untrusted column names.
+
+## 8. Private `windowCount` and `dateColumnRef` fields
 
 The original has both a `$count` property (the period window size) and a
 `count()` method (the COUNT aggregate); PHP keeps these in separate namespaces.
