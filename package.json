@@ -9,6 +9,10 @@
     ".": {
       "require": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./nestjs": {
+      "require": "./dist/nestjs/index.js",
+      "types": "./dist/nestjs/index.d.ts"
     }
   },
   "files": [
@@ -36,6 +40,8 @@
   },
   "devDependencies": {
     "@nestjs/common": "^10",
+    "@nestjs/core": "^10",
+    "@nestjs/testing": "^10",
     "@types/luxon": "^3",
     "@types/node": "^20",
     "@typescript-eslint/eslint-plugin": "^7",

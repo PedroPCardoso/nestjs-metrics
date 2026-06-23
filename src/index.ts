@@ -1,4 +1,6 @@
 export { MetricsBuilder, MetricsBuilder as Metrics } from './metrics.builder';
+export { metricsFor, withMetrics } from './repository';
+export type { MetricsRepository } from './repository';
 export { Aggregate } from './enums/aggregate.enum';
 export { Period } from './enums/period.enum';
 export type { SqlDialect, DatePart } from './dialects/sql-dialect.interface';
