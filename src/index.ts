@@ -1,6 +1,13 @@
 export { MetricsBuilder, MetricsBuilder as Metrics } from './metrics.builder';
 export { metricsFor, withMetrics } from './repository';
 export type { MetricsRepository } from './repository';
+export type {
+  DataSource,
+  SqlExecutor,
+  Row,
+  SupportedDialect,
+  ExecutorSpec,
+} from './datasource';
 export { Aggregate } from './enums/aggregate.enum';
 export { Period } from './enums/period.enum';
 export type { SqlDialect, DatePart } from './dialects/sql-dialect.interface';
@@ -16,3 +23,4 @@ export { InvalidAggregateException } from './exceptions/invalid-aggregate.except
 export { InvalidDateFormatException } from './exceptions/invalid-date-format.exception';
 export { InvalidIdentifierException } from './exceptions/invalid-identifier.exception';
 export { InvalidTimezoneException } from './exceptions/invalid-timezone.exception';
+export { SqliteTimezoneUnsupportedException } from './exceptions/sqlite-timezone-unsupported.exception';

@@ -39,7 +39,7 @@ O resultado deve:
 
 - Não é um app/serviço HTTP — é uma lib (um app demo é roadmap, ver §13).
 - Não fornece UI de gráficos; entrega apenas o **payload** (`{ labels, data }`) pronto para Chart.js/ApexCharts/etc.
-- Não suporta Prisma/Knex/Drizzle na v1. **(Decisão 1: o `QueryAdapter` foi cortado — o core acopla direto ao TypeORM; a portabilidade de ORM será extraída sob demanda quando o 2º ORM existir.)**
+- ~~Não suporta Prisma/Knex/Drizzle na v1.~~ **(Decisão 1, atualizada):** a abstração foi **extraída** quando o 2º backend surgiu (modo executor, ver §6.4). O core agora é dual-mode — o caminho TypeORM permanece intacto; um `ExecutorBackend` agnóstico de ORM emite SQL cru para qualquer `DataSource` `(sql, params) => rows`. Pacotes adapter (Prisma/Drizzle) são roadmap do monorepo `@metrics-kit` (PRD #16).
 
 ---
 
@@ -311,11 +311,17 @@ O original usa `selectRaw('avg(col) as data, ...')` e bindings posicionais (`?`)
 ### 6.3 Detecção de driver
 `builder.getConnection().getDriverName()` → `dataSource.options.type` (`postgres`/`mysql`/`mariadb`/`sqlite`/`better-sqlite3`). `DialectFactory.for(type)` retorna a estratégia certa; `mariadb` mapeia para `MySqlDialect`.
 
-### 6.4 Abstração de ORM (futuro) — **adiada (Decisão 1)**
-Na v0.1 **não** existe `QueryAdapter`: o core fala direto com o `SelectQueryBuilder` do TypeORM. Quando um 2º ORM (Prisma/Knex) for realmente necessário, a interface será **extraída** a partir dos dois casos reais — não desenhada especulativamente contra um só. A `SqlDialect` strategy, essa sim, existe desde o dia 1 (os três dialetos coexistem).
+### 6.4 Abstração de ORM — **extraída (Decisão 1, cumprida)**
+A interface foi extraída quando o 2º backend surgiu, não desenhada especulativamente. O core é **dual-mode** por trás de `QueryBackend`: o builder monta um `QueryPlan` backend-neutro (select/where/group/order + params `:name`), e um backend o renderiza:
+- **`TypeOrmBackend`** — o caminho original, sobre o `SelectQueryBuilder`, com comportamento e escaping do driver **inalterados**.
+- **`ExecutorBackend`** — monta um SQL cru parametrizado e o executa via um `DataSource` agnóstico `(sql, params) => rows` (Prisma/Drizzle/qualquer driver). Placeholders `:name` viram posicionais (`$n` no Postgres, `?` no MySQL/SQLite); tipos crus do driver passam por `normalize()` no boundary.
+
+A `SqlDialect` strategy existe desde o dia 1 (os três dialetos coexistem) e ganhou `escapeId`/`placeholder` para o modo executor.
 
 ### 6.7 Segurança de identificadores (Decisão 2)
-`column`/`table`/`dateColumn`/`labelColumn` são interpolados crus no SQL (herança do original). Como é uma lib pública e parâmetros nomeados **não** protegem identificadores, todo identificador passa por `assertSafeIdentifier()` (allowlist `^[a-zA-Z_][a-zA-Z0-9_.]*$`) + escape do driver antes de entrar no `addSelect`/`where`. Documenta-se que o ideal continua sendo input controlado pelo dev.
+`column`/`table`/`dateColumn`/`labelColumn` são interpolados crus no SQL (herança do original). Como é uma lib pública e parâmetros nomeados **não** protegem identificadores, todo identificador passa por `assertSafeIdentifier()` (allowlist `^[a-zA-Z_][a-zA-Z0-9_.]*$`) + escape (driver no `TypeOrmBackend`, `dialect.escapeId` no `ExecutorBackend`) antes de entrar no SQL. Valores fluem **somente** como parâmetros ligados. Documenta-se que o ideal continua sendo input controlado pelo dev.
+
+**Escape hatch `from` (modo executor):** `ExecutorSpec.from` aceita um fragmento `FROM` cru (para joins/subqueries que o `{ table }` estruturado não expressa). Esse fragmento é interpolado **sem** sanitização — é uma **superfície confiável do dev**, explicitamente não para input do usuário final. É o único ponto fora da regra de allowlist acima, registrado aqui de propósito.
 
 ### 6.8 Fuso horário (Decisões 9 e 10)
 Opção `timezone` (IANA) na chamada/`forRoot`/`forFeature`. Conversão por dialeto: Postgres `col AT TIME ZONE`, MySQL `CONVERT_TZ()` (**exige timezone tables carregadas** no contêiner — senão retorna NULL silencioso), SQLite **faz o bucketing em JS** (Luxon, DST-correto), que serve de oráculo para validar o SQL dos outros dois. Default `UTC`.

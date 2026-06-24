@@ -26,4 +26,16 @@ export interface SqlDialect {
    * placeholder, e.g. `:nm_tz`), so date parts are extracted in local time.
    */
   convertTz(column: string, tzParam: string): string;
+
+  /**
+   * Quote a (pre-validated) identifier for this dialect. Only used by the
+   * executor mode — the TypeORM path keeps using the driver's own escaping.
+   */
+  escapeId(name: string): string;
+
+  /**
+   * The positional placeholder for the n-th (1-based) bound parameter:
+   * `$n` for Postgres, `?` for MySQL/SQLite.
+   */
+  placeholder(index: number): string;
 }

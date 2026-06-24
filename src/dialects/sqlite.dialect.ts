@@ -42,4 +42,12 @@ export class SqliteDialect implements SqlDialect {
     // user function registered on the connection (DST-correct).
     return `nm_tz_local(${column}, ${tzParam})`;
   }
+
+  escapeId(name: string): string {
+    return `"${name.replace(/"/g, '""')}"`;
+  }
+
+  placeholder(): string {
+    return '?';
+  }
 }

@@ -36,4 +36,12 @@ export class MySqlDialect implements SqlDialect {
   convertTz(column: string, tzParam: string): string {
     return `CONVERT_TZ(${column}, 'UTC', ${tzParam})`;
   }
+
+  escapeId(name: string): string {
+    return `\`${name.replace(/`/g, '``')}\``;
+  }
+
+  placeholder(): string {
+    return '?';
+  }
 }

@@ -36,4 +36,12 @@ export class PostgresDialect implements SqlDialect {
   convertTz(column: string, tzParam: string): string {
     return `((${column}) AT TIME ZONE 'UTC' AT TIME ZONE ${tzParam})`;
   }
+
+  escapeId(name: string): string {
+    return `"${name.replace(/"/g, '""')}"`;
+  }
+
+  placeholder(index: number): string {
+    return `$${index}`;
+  }
 }

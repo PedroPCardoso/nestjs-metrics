@@ -5,9 +5,14 @@ import { Period } from './enums/period.enum';
 import { InvalidPeriodException } from './exceptions/invalid-period.exception';
 import { InvalidVariationsCountException } from './exceptions/invalid-variations-count.exception';
 import { assertAggregate, assertDateFormat, assertSafeIdentifier, assertTimezone } from './validation';
-import { registerSqliteTz } from './dates/sqlite-tz';
 import { dialectFor } from './dialects/dialect.factory';
 import { DatePart, SqlDialect } from './dialects/sql-dialect.interface';
+import { QueryBackend } from './backend/query-backend.interface';
+import { QueryPlan, SelectItem } from './backend/query-plan';
+import { TypeOrmBackend } from './backend/typeorm.backend';
+import { ExecutorBackend } from './backend/executor.backend';
+import { DataSource, ExecutorSpec } from './datasource';
+import { normalizeData } from './formatting/normalize';
 import { PeriodResolver } from './dates/period-resolver';
 import { enumerateBuckets } from './dates/bucket-series';
 import { LabelFormatter } from './formatting/label-formatter';
@@ -57,11 +62,12 @@ export class MetricsBuilder<T extends ObjectLiteral> {
   private week: number = isoWeek(this.now);
 
   constructor(
-    private readonly qb: SelectQueryBuilder<T>,
+    private readonly backend: QueryBackend,
+    tableName: string,
     options: MetricsOptions = {},
   ) {
-    this.tableName = qb.alias;
-    this.dialect = dialectFor(qb.connection.options.type);
+    this.tableName = tableName;
+    this.dialect = backend.dialect;
     this.locale = options.locale ?? DEFAULT_LOCALE;
     this.timezone = options.timezone ?? DEFAULT_TIMEZONE;
     assertTimezone(this.timezone);
@@ -81,7 +87,7 @@ export class MetricsBuilder<T extends ObjectLiteral> {
   }
 
   private escapeId(name: string): string {
-    return this.qb.connection.driver.escape(name);
+    return this.backend.escapeId(name);
   }
 
   /**
@@ -90,7 +96,8 @@ export class MetricsBuilder<T extends ObjectLiteral> {
    * state (extend here when adding new aggregate-relevant fields, e.g. timezone).
    */
   private baseClone(): MetricsBuilder<T> {
-    const clone = new MetricsBuilder<T>(this.qb.clone(), {
+    // The backend clones the underlying query per run(), so it is safe to share.
+    const clone = new MetricsBuilder<T>(this.backend, this.tableName, {
       locale: this.locale,
       timezone: this.timezone,
     });
@@ -101,11 +108,31 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     return clone;
   }
 
+  /** Entry point over a TypeORM SelectQueryBuilder (the original API). */
   static query<T extends ObjectLiteral>(
     qb: SelectQueryBuilder<T>,
     options?: MetricsOptions,
   ): MetricsBuilder<T> {
-    return new MetricsBuilder(qb, options);
+    return new MetricsBuilder(new TypeOrmBackend(qb), qb.alias, options);
+  }
+
+  /**
+   * Entry point over an ORM-agnostic DataSource (Prisma, Drizzle, …). Reads from
+   * `spec.table` (or a raw `spec.from` fragment), bucketing `spec.dateColumn`.
+   */
+  static queryExecutor<R extends ObjectLiteral>(
+    dataSource: DataSource,
+    spec: ExecutorSpec,
+    options?: MetricsOptions,
+  ): MetricsBuilder<R> {
+    assertSafeIdentifier(spec.table);
+    const dialect = dialectFor(dataSource.dialect);
+    const from = spec.from ?? dialect.escapeId(spec.table);
+    const builder = new MetricsBuilder<R>(new ExecutorBackend(dataSource, from), spec.table, options);
+    if (spec.dateColumn) {
+      builder.dateColumn(spec.dateColumn);
+    }
+    return builder;
   }
 
   // --- Aggregates ---------------------------------------------------------
@@ -392,14 +419,19 @@ export class MetricsBuilder<T extends ObjectLiteral> {
 
   /** Generate a single aggregate value. Returns 0 when there is no data. */
   async metrics(): Promise<number> {
-    const qb = this.qb.clone();
-    qb.select(this.dialect.aggregate(this.aggregateFn, this.column), 'data');
-    this.applyFilters(qb);
-    this.prepareTz(qb);
+    const params: Record<string, unknown> = {};
+    const where = this.buildFilters(params);
+    this.applyTz(params);
 
-    const raw = await qb.getRawOne<{ data: unknown }>();
-    const data = raw?.data;
-    return data === null || data === undefined ? 0 : Number(data);
+    const plan: QueryPlan = {
+      select: [{ expr: this.dialect.aggregate(this.aggregateFn, this.column), alias: 'data' }],
+      where,
+      params,
+      tz: this.tzActive() ? this.timezone : undefined,
+    };
+
+    const rows = await this.backend.run(plan);
+    return normalizeData(rows[0]?.data);
   }
 
   /**
@@ -480,10 +512,15 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     if (this.missingLabels.length > 0) {
       return this.missingLabels;
     }
-    const qb = this.qb.clone();
-    qb.select(this.labelColumnName as string, 'label').distinct(true).orderBy('label', 'ASC');
-    const rows = await qb.getRawMany<{ label: string | number }>();
-    return rows.map((row) => row.label);
+    const plan: QueryPlan = {
+      select: [{ expr: this.labelColumnName as string, alias: 'label' }],
+      where: [],
+      distinct: true,
+      orderBy: { expr: 'label', dir: 'ASC' },
+      params: {},
+    };
+    const rows = await this.backend.run(plan);
+    return rows.map((row) => row.label as string | number);
   }
 
   /** Build the multi-series GroupedTrendsResult for groupData(). */
@@ -526,16 +563,25 @@ export class MetricsBuilder<T extends ObjectLiteral> {
   }
 
   private async trendsData(): Promise<RawTrendRow[]> {
-    const qb = this.qb.clone();
-    qb.select(this.dialect.aggregate(this.aggregateFn, this.column), 'data')
-      .addSelect(this.labelExpr(), 'label')
-      .groupBy('label')
-      .orderBy('label', 'ASC');
-    this.applyGroupedData(qb);
-    this.applyFilters(qb);
-    this.prepareTz(qb);
+    const params: Record<string, unknown> = {};
+    const select: SelectItem[] = [
+      { expr: this.dialect.aggregate(this.aggregateFn, this.column), alias: 'data' },
+      { expr: this.labelExpr(), alias: 'label' },
+    ];
+    this.appendGroupedData(select, params);
+    const where = this.buildFilters(params);
+    this.applyTz(params);
 
-    return qb.getRawMany<RawTrendRow>();
+    const plan: QueryPlan = {
+      select,
+      where,
+      groupBy: 'label',
+      orderBy: { expr: 'label', dir: 'ASC' },
+      params,
+      tz: this.tzActive() ? this.timezone : undefined,
+    };
+
+    return (await this.backend.run(plan)) as unknown as RawTrendRow[];
   }
 
   /**
@@ -543,13 +589,14 @@ export class MetricsBuilder<T extends ObjectLiteral> {
    * `data{i}` column with the per-group value. Group values are bound as
    * parameters (never interpolated).
    */
-  private applyGroupedData(qb: SelectQueryBuilder<T>): void {
+  private appendGroupedData(select: SelectItem[], params: Record<string, unknown>): void {
     this.groupedLabels.forEach((value, i) => {
       const key = `nm_g${i}`;
-      qb.addSelect(
-        `${this.groupedAggregate}(CASE WHEN ${this.column} = :${key} THEN 1 ELSE 0 END)`,
-        `data${i}`,
-      ).setParameter(key, value);
+      params[key] = value;
+      select.push({
+        expr: `${this.groupedAggregate}(CASE WHEN ${this.column} = :${key} THEN 1 ELSE 0 END)`,
+        alias: `data${i}`,
+      });
     });
   }
 
@@ -578,77 +625,93 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     return this.dialect.convertTz(this.dateColumnRef, ':nm_tz');
   }
 
-  /** Bind the timezone parameter / register the SQLite tz function when needed. */
-  private prepareTz(qb: SelectQueryBuilder<T>): void {
-    if (this.timezone === DEFAULT_TIMEZONE) {
-      return;
-    }
-    qb.setParameter('nm_tz', this.timezone);
-    const driver = this.qb.connection.driver as { databaseConnection?: unknown };
-    if (this.qb.connection.options.type === 'better-sqlite3' && driver.databaseConnection) {
-      registerSqliteTz(driver.databaseConnection as Parameters<typeof registerSqliteTz>[0]);
+  /** Whether a non-UTC timezone is configured. */
+  private tzActive(): boolean {
+    return this.timezone !== DEFAULT_TIMEZONE;
+  }
+
+  /** Bind the timezone parameter when a non-UTC timezone is configured. */
+  private applyTz(params: Record<string, unknown>): void {
+    if (this.tzActive()) {
+      params.nm_tz = this.timezone;
     }
   }
 
-  /** Apply the WHERE clauses that scope the query to the configured period/range. */
-  private applyFilters(qb: SelectQueryBuilder<T>): void {
+  /**
+   * Build the WHERE fragments that scope the query to the configured
+   * period/range, collecting their bound values into `params`.
+   */
+  private buildFilters(params: Record<string, unknown>): string[] {
+    const where: string[] = [];
     if (this.range) {
-      qb.andWhere(
+      params.nm_start = this.range.start;
+      params.nm_end = this.range.end;
+      where.push(
         `${this.dialect.dateBucket('day', this.dateExpr())} BETWEEN :nm_start AND :nm_end`,
-        { nm_start: this.range.start, nm_end: this.range.end },
       );
-      return;
+      return where;
     }
     switch (this.period) {
       case Period.DAY:
-        this.whereEquals(qb, 'year', this.year);
-        this.whereEquals(qb, 'month', this.month);
-        this.applyWindow(qb, 'day', this.day, () => this.resolver().dayPeriod());
+        this.eqFilter(where, params, 'year', this.year);
+        this.eqFilter(where, params, 'month', this.month);
+        this.windowFilter(where, params, 'day', this.day, () => this.resolver().dayPeriod());
         break;
       case Period.WEEK:
-        this.whereEquals(qb, 'year', this.year);
-        this.whereEquals(qb, 'month', this.month);
-        this.applyWindow(qb, 'week', this.week, () => this.resolver().weekPeriod());
+        this.eqFilter(where, params, 'year', this.year);
+        this.eqFilter(where, params, 'month', this.month);
+        this.windowFilter(where, params, 'week', this.week, () => this.resolver().weekPeriod());
         break;
       case Period.MONTH:
-        this.whereEquals(qb, 'year', this.year);
-        this.applyWindow(qb, 'month', this.month, () => this.resolver().monthPeriod());
+        this.eqFilter(where, params, 'year', this.year);
+        this.windowFilter(where, params, 'month', this.month, () => this.resolver().monthPeriod());
         break;
       case Period.YEAR:
-        this.applyWindow(qb, 'year', this.year, () => [this.year - this.windowCount, this.year]);
+        this.windowFilter(where, params, 'year', this.year, () => [
+          this.year - this.windowCount,
+          this.year,
+        ]);
         break;
     }
+    return where;
   }
 
-  private applyWindow(
-    qb: SelectQueryBuilder<T>,
+  private windowFilter(
+    where: string[],
+    params: Record<string, unknown>,
     part: DatePart,
     single: number,
     window: () => [number, number],
   ): void {
     if (this.windowCount === 1) {
-      this.whereEquals(qb, part, single);
+      this.eqFilter(where, params, part, single);
     } else if (this.windowCount > 1) {
-      this.whereBetween(qb, part, window());
+      this.betweenFilter(where, params, part, window());
     }
   }
 
-  private whereEquals(qb: SelectQueryBuilder<T>, part: DatePart, value: number): void {
+  private eqFilter(
+    where: string[],
+    params: Record<string, unknown>,
+    part: DatePart,
+    value: number,
+  ): void {
     const key = `nm_${part}`;
-    qb.andWhere(`${this.dialect.periodExpr(part, this.dateExpr())} = :${key}`, { [key]: value });
+    params[key] = value;
+    where.push(`${this.dialect.periodExpr(part, this.dateExpr())} = :${key}`);
   }
 
-  private whereBetween(
-    qb: SelectQueryBuilder<T>,
+  private betweenFilter(
+    where: string[],
+    params: Record<string, unknown>,
     part: DatePart,
     [start, end]: [number, number],
   ): void {
     const lo = `nm_${part}_lo`;
     const hi = `nm_${part}_hi`;
-    qb.andWhere(`${this.dialect.periodExpr(part, this.dateExpr())} BETWEEN :${lo} AND :${hi}`, {
-      [lo]: start,
-      [hi]: end,
-    });
+    params[lo] = start;
+    params[hi] = end;
+    where.push(`${this.dialect.periodExpr(part, this.dateExpr())} BETWEEN :${lo} AND :${hi}`);
   }
 
   private resolver(): PeriodResolver {
