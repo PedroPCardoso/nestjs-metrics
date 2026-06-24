@@ -1,210 +1,98 @@
-# nestjs-metrics
+# metrics-kit
 
 Generate **metrics** (aggregate values) and **trends** (chart-ready time series)
-from your TypeORM entities, through a fluent API — a TypeScript/NestJS port of
+from your database, through a fluent API — a TypeScript port of
 [`eliseekn/laravel-metrics`](https://github.com/eliseekn/laravel-metrics).
+
+The engine is **ORM-agnostic**: the same fluent API runs over TypeORM, Prisma,
+Drizzle, or any driver that can execute a SQL string.
 
 - Aggregates: `count` / `sum` / `average` / `max` / `min`
 - Periods: `byDay` / `byWeek` / `byMonth` / `byYear`, windows, date ranges
 - SQLite, PostgreSQL and MySQL/MariaDB, with **ISO-8601 weeks** everywhere
-- Locale-translated labels (Luxon) and **timezone-aware bucketing**
+- Locale-translated labels (Luxon) and **timezone-aware bucketing** (Postgres/MySQL)
 - `fillMissingData`, `groupData` (multi-series), percentage trends, variations
-- First-class **NestJS** module, plus standalone and repository entry points
 
-> Intentional differences from the original are listed in [DIVERGENCES.md](./DIVERGENCES.md).
+## Packages
 
-## Requirements
-
-```
-Node >= 18
-typeorm ^0.3   (peer)
-@nestjs/common ^10 || ^11   (optional peer — only for the NestJS module)
-```
-
-## Installation
-
-```bash
-npm install nestjs-metrics
-```
-
-## Usage
+| Package | What it is | Install |
+| --- | --- | --- |
+| [`@metrics-kit/core`](packages/core) | The engine + fluent API. Dual-mode: a TypeORM query builder, or a raw-SQL executor for any driver. | `npm i @metrics-kit/core` |
+| [`@metrics-kit/nestjs`](packages/nestjs) | NestJS module + injectable service (TypeORM). | `npm i @metrics-kit/nestjs` |
+| [`@metrics-kit/nextjs`](packages/nextjs) | Prisma & Drizzle adapters for Next.js / any Node runtime. | `npm i @metrics-kit/nextjs` |
+| [`nestjs-metrics`](packages/nestjs-metrics) | Back-compat façade: re-exports core (`.`) + nestjs (`./nestjs`). | `npm i nestjs-metrics` |
 
 The terminals (`metrics()`, `trends()`, `metricsWithVariations()`) are **async**.
 
-### Standalone
+## Quick start
+
+### Prisma (Next.js / Node)
 
 ```ts
-import { Metrics } from 'nestjs-metrics';
+import { prismaMetrics } from '@metrics-kit/nextjs/prisma';
 
-// trend of orders amount sum, by month of 2026
-const result = await Metrics.query(orderRepo.createQueryBuilder('orders'))
-  .sum('amount')
-  .byMonth()
+const revenueByMonth = await prismaMetrics(prisma, {
+  table: 'orders',
+  dateColumn: 'created_at',
+  dialect: 'postgres',
+})
+  .sumByMonth('amount')
   .forYear(2026)
-  .trends();
-// → { labels: ['January', 'March', ...], data: [1200, 980, ...] }
+  .fillMissingData()
+  .trends(); // → { labels: ['January', …], data: [1200, 980, …] }
+```
 
-// total order count, all time
-const total = await Metrics.query(orderRepo.createQueryBuilder('orders'))
-  .count()
-  .byYear()
+### Drizzle (typed table → names + dialect inferred)
+
+```ts
+import { drizzleMetrics } from '@metrics-kit/nextjs/drizzle';
+import { orders } from './schema';
+
+const total = await drizzleMetrics(db, { table: orders, dateColumn: orders.createdAt })
+  .sum('amount')
   .metrics(); // → number
 ```
 
-### From a repository
+### NestJS / TypeORM
 
 ```ts
-import { metricsFor, withMetrics } from 'nestjs-metrics';
+import { MetricsModule, MetricsService } from '@metrics-kit/nestjs';
 
-await metricsFor(orderRepo).sum('amount').byMonth().trends();
-
-// or extend the repository with a .metrics() method
-const repo = withMetrics(orderRepo);
-await repo.metrics().countByMonth().trends();
-```
-
-### NestJS module
-
-```ts
-import { MetricsModule, MetricsService } from 'nestjs-metrics/nestjs';
-
-@Module({
-  imports: [MetricsModule.forRoot({ locale: 'pt-BR', timezone: 'America/Sao_Paulo' })],
-})
+@Module({ imports: [MetricsModule.forRoot({ locale: 'pt-BR', timezone: 'America/Sao_Paulo' })] })
 export class AppModule {}
 
-@Injectable()
-export class DashboardService {
-  constructor(
-    private readonly metrics: MetricsService,
-    @InjectRepository(Order) private readonly orders: Repository<Order>,
-  ) {}
-
-  monthlyRevenue() {
-    return this.metrics
-      .query(this.orders.createQueryBuilder('orders'))
-      .sumByMonth('amount', 12)
-      .forYear(2026)
-      .fillMissingData()
-      .trends();
-  }
-}
+// inside a provider:
+this.metrics.query(orderRepo.createQueryBuilder('orders')).sumByMonth('amount').forYear(2026).trends();
 ```
 
-`MetricsModule.forFeature({ locale, timezone })` overrides the root defaults
-within a feature module. Configuration precedence is
-**call option > forFeature > forRoot > library default** (`en` / `UTC`).
-
-## API
-
-### Aggregates
+### Standalone (TypeORM query builder)
 
 ```ts
-.count(column = 'id')
-.sum(column)
-.average(column)
-.max(column)
-.min(column)
+import { Metrics } from '@metrics-kit/core';
+
+await Metrics.query(orderRepo.createQueryBuilder('orders')).count().metrics();
 ```
 
-### Periods
-
-```ts
-.byDay(count = 0)
-.byWeek(count = 0)
-.byMonth(count = 0)
-.byYear(count = 0)
-```
-
-`count = 0` → the whole period · `count = 1` → a single unit · `count > 1` → the
-last-`n` window.
-
-### Reference point
-
-```ts
-.forDay(day)
-.forWeek(week)   // ISO week number
-.forMonth(month)
-.forYear(year)
-```
-
-### Date ranges
-
-```ts
-.between(start, end)     // 'YYYY-MM-DD'
-.from(date)              // between date and today
-.groupByDay() | .groupByWeek() | .groupByMonth() | .groupByYear()  // range granularity
-```
-
-### Targeting
-
-```ts
-.dateColumn(column)   // bucket by a column other than created_at
-.table(name)          // qualify columns against a joined table
-.labelColumn(column)  // group the series by a categorical column
-```
-
-### Outputs
-
-```ts
-.metrics()                                  // → number
-.trends(inPercent = false)                  // → { labels, data }
-.metricsWithVariations(prevCount, prevPeriod, inPercent = false)
-//   → { count, variation: { type: 'none' | 'increase' | 'decrease', value } }
-```
-
-### Modifiers
-
-```ts
-.fillMissingData(value = 0, labels = [])    // fill gaps in a trend series
-.groupData(labels, aggregate = Aggregate.SUM)
-//   trends() → { labels, data: { total, [label]: [] } }   (stacked / multi-series)
-```
-
-### Combined shorthands
-
-Every aggregate combines with every period and range:
-
-```ts
-.countByMonth(column?, count?)   .sumByYear(column, count?)   .averageByWeek(column, count?)
-.maxByDay(column, count?)        .minByYear(column, count?)   // ...all 20 by-period shorthands
-.countBetween([start, end], column?)   .sumBetween([start, end], column)   // ...all 5 *Between
-.countFrom(date, column?)              .sumFrom(date, column)              // ...all 5 *From
-```
-
-### Locale & timezone
-
-```ts
-Metrics.query(qb, { locale: 'pt-BR', timezone: 'America/Sao_Paulo' });
-```
-
-Month and day labels are translated via the locale (default `en`). With a
-non-UTC `timezone`, the date column is converted before bucketing so
-near-midnight rows land on the correct local day (DST-correct).
-
-> **MySQL:** `CONVERT_TZ` needs the named timezone tables loaded
-> (`mysql_tzinfo_to_sql /usr/share/zoneinfo | mysql mysql`), or it returns NULL.
-
-### Errors
-
-Typed exceptions: `InvalidAggregateException`, `InvalidPeriodException`,
-`InvalidDateFormatException`, `InvalidVariationsCountException`,
-`InvalidIdentifierException`, `InvalidTimezoneException`. Column/table
-identifiers are validated and driver-escaped — but keep them
-developer-controlled, not user input.
+See each package's README for the full API and options. Intentional differences
+from the original Laravel library are listed in [DIVERGENCES.md](./DIVERGENCES.md);
+the architecture is in [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
 ## Development
 
-Everything runs in Docker:
+This is an npm-workspaces monorepo. Everything runs in Docker:
 
 ```bash
 docker compose run --rm dev npm install
+docker compose run --rm dev npm run typecheck
 docker compose run --rm dev npm test            # SQLite
 docker compose up -d --wait postgres mysql
 bash scripts/load-mysql-tz.sh                    # MySQL named timezones (for tz tests)
 docker compose run --rm -e PG_HOST=postgres -e MYSQL_HOST=mysql dev npm test
+docker compose run --rm dev npm run build        # builds all packages
 ```
+
+Releases use Changesets — see [docs/RELEASING.md](./docs/RELEASING.md).
 
 ## License
 
-[MIT](./LICENSE)
+MIT
