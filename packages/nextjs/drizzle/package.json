@@ -1,0 +1,5 @@
+{
+  "main": "../dist/drizzle/index.js",
+  "types": "../dist/drizzle/index.d.ts",
+  "sideEffects": false
+}
