@@ -8,6 +8,7 @@ export type {
   SupportedDialect,
   ExecutorSpec,
 } from './datasource';
+export type { WhereInput, WhereCondition, RangeCondition, WhereScalar } from './where';
 export { Aggregate } from './enums/aggregate.enum';
 export { Period } from './enums/period.enum';
 export type { SqlDialect, DatePart } from './dialects/sql-dialect.interface';

@@ -12,6 +12,7 @@ import { QueryPlan, SelectItem } from './backend/query-plan';
 import { TypeOrmBackend } from './backend/typeorm.backend';
 import { ExecutorBackend } from './backend/executor.backend';
 import { DataSource, ExecutorSpec } from './datasource';
+import { compileWhere, CompiledWhere, WhereInput } from './where';
 import { normalizeData } from './formatting/normalize';
 import { PeriodResolver } from './dates/period-resolver';
 import { enumerateBuckets } from './dates/bucket-series';
@@ -50,6 +51,8 @@ export class MetricsBuilder<T extends ObjectLiteral> {
   private groupBy: DatePart = 'day';
   /** Categorical column to group by instead of a date period. */
   private labelColumnName: string | null = null;
+  /** Structured executor-mode filters (ANDed onto every query). */
+  private extraFilters: CompiledWhere | null = null;
   private fill = false;
   private missingValue = 0;
   private missingLabels: (string | number)[] = [];
@@ -105,6 +108,7 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     clone.column = this.column;
     clone.dateColumnRef = this.dateColumnRef;
     clone.tableName = this.tableName;
+    clone.extraFilters = this.extraFilters;
     return clone;
   }
 
@@ -132,7 +136,15 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     if (spec.dateColumn) {
       builder.dateColumn(spec.dateColumn);
     }
+    if (spec.where) {
+      builder.applyExecutorWhere(spec.where);
+    }
     return builder;
+  }
+
+  /** Compile and store structured executor-mode filters (set by queryExecutor). */
+  private applyExecutorWhere(where: WhereInput): void {
+    this.extraFilters = compileWhere(where, (column) => this.qualify(column));
   }
 
   // --- Aggregates ---------------------------------------------------------
@@ -649,29 +661,35 @@ export class MetricsBuilder<T extends ObjectLiteral> {
       where.push(
         `${this.dialect.dateBucket('day', this.dateExpr())} BETWEEN :nm_start AND :nm_end`,
       );
-      return where;
+    } else {
+      switch (this.period) {
+        case Period.DAY:
+          this.eqFilter(where, params, 'year', this.year);
+          this.eqFilter(where, params, 'month', this.month);
+          this.windowFilter(where, params, 'day', this.day, () => this.resolver().dayPeriod());
+          break;
+        case Period.WEEK:
+          this.eqFilter(where, params, 'year', this.year);
+          this.eqFilter(where, params, 'month', this.month);
+          this.windowFilter(where, params, 'week', this.week, () => this.resolver().weekPeriod());
+          break;
+        case Period.MONTH:
+          this.eqFilter(where, params, 'year', this.year);
+          this.windowFilter(where, params, 'month', this.month, () =>
+            this.resolver().monthPeriod(),
+          );
+          break;
+        case Period.YEAR:
+          this.windowFilter(where, params, 'year', this.year, () => [
+            this.year - this.windowCount,
+            this.year,
+          ]);
+          break;
+      }
     }
-    switch (this.period) {
-      case Period.DAY:
-        this.eqFilter(where, params, 'year', this.year);
-        this.eqFilter(where, params, 'month', this.month);
-        this.windowFilter(where, params, 'day', this.day, () => this.resolver().dayPeriod());
-        break;
-      case Period.WEEK:
-        this.eqFilter(where, params, 'year', this.year);
-        this.eqFilter(where, params, 'month', this.month);
-        this.windowFilter(where, params, 'week', this.week, () => this.resolver().weekPeriod());
-        break;
-      case Period.MONTH:
-        this.eqFilter(where, params, 'year', this.year);
-        this.windowFilter(where, params, 'month', this.month, () => this.resolver().monthPeriod());
-        break;
-      case Period.YEAR:
-        this.windowFilter(where, params, 'year', this.year, () => [
-          this.year - this.windowCount,
-          this.year,
-        ]);
-        break;
+    if (this.extraFilters) {
+      where.push(...this.extraFilters.fragments);
+      Object.assign(params, this.extraFilters.params);
     }
     return where;
   }

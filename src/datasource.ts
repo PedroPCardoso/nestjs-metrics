@@ -1,3 +1,5 @@
+import { WhereInput } from './where';
+
 /** One raw result row, keyed by select alias. */
 export type Row = Record<string, unknown>;
 
@@ -24,6 +26,8 @@ export interface DataSource {
 export interface ExecutorSpec {
   table: string;
   dateColumn?: string;
+  /** Structured filters (equality / IN / range) ANDed onto the query. */
+  where?: WhereInput;
   /** Raw SQL FROM fragment (trusted developer surface) — replaces `table`. */
   from?: string;
 }
