@@ -1,8 +1,16 @@
 {
   "name": "@metrics-kit/nextjs",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Metrics & trends for Next.js / any Node runtime, over Prisma or Drizzle.",
-  "keywords": ["nextjs", "prisma", "drizzle", "metrics", "trends", "dashboard", "analytics"],
+  "keywords": [
+    "nextjs",
+    "prisma",
+    "drizzle",
+    "metrics",
+    "trends",
+    "dashboard",
+    "analytics"
+  ],
   "author": "Pedro Cardoso",
   "license": "MIT",
   "repository": {
@@ -28,7 +36,11 @@
     },
     "./package.json": "./package.json"
   },
-  "files": ["dist", "prisma", "drizzle"],
+  "files": [
+    "dist",
+    "prisma",
+    "drizzle"
+  ],
   "engines": {
     "node": ">=18"
   },
@@ -41,7 +53,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@metrics-kit/core": "^0.1.0"
+    "@metrics-kit/core": "^0.2.0"
   },
   "peerDependencies": {
     "@prisma/client": "*",

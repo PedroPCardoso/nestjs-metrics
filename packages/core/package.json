@@ -1,8 +1,15 @@
 {
   "name": "@metrics-kit/core",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "ORM-agnostic metrics & trends engine. Dual-mode: TypeORM query builder or a raw-SQL executor (Prisma/Drizzle/any driver).",
-  "keywords": ["metrics", "trends", "charts", "dashboard", "analytics", "sql"],
+  "keywords": [
+    "metrics",
+    "trends",
+    "charts",
+    "dashboard",
+    "analytics",
+    "sql"
+  ],
   "author": "Pedro Cardoso",
   "license": "MIT",
   "repository": {
@@ -20,7 +27,9 @@
     },
     "./package.json": "./package.json"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "engines": {
     "node": ">=18"
   },
