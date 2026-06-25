@@ -1,6 +1,7 @@
 export { MetricsBuilder, MetricsBuilder as Metrics } from './metrics.builder';
 export { metricsFor, withMetrics } from './repository';
 export type { MetricsRepository } from './repository';
+export type { MetricsEntity } from './types/metrics-entity';
 export type {
   DataSource,
   SqlExecutor,

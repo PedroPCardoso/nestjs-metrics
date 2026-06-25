@@ -1,6 +1,6 @@
 import type { ObjectLiteral, SelectQueryBuilder } from 'typeorm';
 import { Row } from '../datasource';
-import { registerSqliteTz } from '../dates/sqlite-tz';
+import { registerSqliteTz, BetterSqlite3Db } from '../dates/sqlite-tz';
 import { dialectFor } from '../dialects/dialect.factory';
 import { SqlDialect } from '../dialects/sql-dialect.interface';
 import { QueryBackend } from './query-backend.interface';
@@ -54,7 +54,7 @@ export class TypeOrmBackend<T extends ObjectLiteral> implements QueryBackend {
   private registerTz(): void {
     const driver = this.qb.connection.driver as { databaseConnection?: unknown };
     if (this.qb.connection.options.type === 'better-sqlite3' && driver.databaseConnection) {
-      registerSqliteTz(driver.databaseConnection as Parameters<typeof registerSqliteTz>[0]);
+      registerSqliteTz(driver.databaseConnection as BetterSqlite3Db);
     }
   }
 }

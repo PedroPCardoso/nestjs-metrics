@@ -7,7 +7,7 @@ import { InvalidTimezoneException } from './exceptions/invalid-timezone.exceptio
 
 const IDENTIFIER = /^[a-zA-Z_][a-zA-Z0-9_.]*$/;
 const DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
-const AGGREGATES = Object.values(Aggregate) as string[];
+const AGGREGATES = Object.values(Aggregate);
 
 /**
  * Reject anything that is not a plain SQL identifier before it is interpolated
