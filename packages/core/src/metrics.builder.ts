@@ -13,7 +13,7 @@ import { TypeOrmBackend } from './backend/typeorm.backend';
 import { ExecutorBackend } from './backend/executor.backend';
 import { DataSource, ExecutorSpec } from './datasource';
 import { compileWhere, CompiledWhere, WhereInput } from './where';
-import { normalizeData } from './formatting/normalize';
+import { normalizeData, normalizeLabel } from './formatting/normalize';
 import { PeriodResolver } from './dates/period-resolver';
 import { enumerateBuckets } from './dates/bucket-series';
 import { LabelFormatter } from './formatting/label-formatter';
@@ -25,6 +25,7 @@ import {
 } from './formatting/trends.formatter';
 import { gapFillRaw, populate, presentIntegerLabels } from './formatting/missing-data';
 import { GroupedTrendsResult, MetricsOptions, TrendsResult, VariationResult } from './types';
+import { PERIOD_TO_DATE_PART, toTrendRow, isRecord } from './types/helpers';
 
 const DEFAULT_LOCALE = 'en';
 const DEFAULT_TIMEZONE = 'UTC';
@@ -532,7 +533,7 @@ export class MetricsBuilder<T extends ObjectLiteral> {
       params: {},
     };
     const rows = await this.backend.run(plan);
-    return rows.map((row) => row.label as string | number);
+    return rows.map((row) => normalizeLabel(row.label));
   }
 
   /** Build the multi-series GroupedTrendsResult for groupData(). */
@@ -548,7 +549,8 @@ export class MetricsBuilder<T extends ObjectLiteral> {
 
     const seriesFor = (field: string): number[] => {
       const values = canonical.map((label) => {
-        const row = byLabel.get(String(label)) as Record<string, unknown> | undefined;
+        const raw = byLabel.get(String(label));
+        const row = isRecord(raw) ? raw : undefined;
         return row ? Number(row[field]) : this.missingValue;
       });
       return inPercent ? percentArray(values) : values;
@@ -565,7 +567,7 @@ export class MetricsBuilder<T extends ObjectLiteral> {
   /** Canonical raw labels (shared by every series) for grouped trends. */
   private async groupedCanonical(rows: RawTrendRow[]): Promise<(string | number)[]> {
     if (!this.fill) {
-      return rows.map((row) => row.label as string | number);
+      return rows.map((row) => normalizeLabel(row.label));
     }
     if (this.range || this.labelColumnName) {
       return this.canonicalLabels();
@@ -593,7 +595,8 @@ export class MetricsBuilder<T extends ObjectLiteral> {
       tz: this.tzActive() ? this.timezone : undefined,
     };
 
-    return (await this.backend.run(plan)) as unknown as RawTrendRow[];
+    const rows = await this.backend.run(plan);
+    return rows.map(toTrendRow);
   }
 
   /**
@@ -621,7 +624,7 @@ export class MetricsBuilder<T extends ObjectLiteral> {
       return this.dialect.dateBucket(this.groupBy, this.dateExpr());
     }
     if (this.period) {
-      return this.dialect.periodExpr(this.period as DatePart, this.dateExpr());
+      return this.dialect.periodExpr(PERIOD_TO_DATE_PART[this.period], this.dateExpr());
     }
     return this.dateExpr();
   }

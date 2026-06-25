@@ -33,7 +33,7 @@ export function gapFillRaw(rows: RawTrendRow[], missingValue: number): RawTrendR
 
   return presentIntegerLabels(rows).map((n) => ({
     label: n,
-    data: present.has(n) ? (present.get(n) as number) : missingValue,
+    data: present.get(n) ?? missingValue,
   }));
 }
 
@@ -52,7 +52,7 @@ export function populate(
   return {
     labels: canonicalLabels,
     data: canonicalLabels.map((label) =>
-      present.has(String(label)) ? (present.get(String(label)) as number) : missingValue,
+      present.get(String(label)) ?? missingValue,
     ),
   };
 }

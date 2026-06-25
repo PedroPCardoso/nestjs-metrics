@@ -1,6 +1,6 @@
 import { DateTime } from 'luxon';
 
-interface BetterSqlite3Db {
+export interface BetterSqlite3Db {
   function(name: string, options: { deterministic: boolean }, fn: (...args: unknown[]) => unknown): void;
 }
 

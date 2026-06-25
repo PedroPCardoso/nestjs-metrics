@@ -36,7 +36,7 @@ export function normalizeLabel(value: unknown): string | number {
     // buckets, so this is a safety net, normalized to a stable YYYY-MM-DD.
     return value.toISOString().slice(0, 10);
   }
-  return value as string | number;
+  return String(value);
 }
 
 function toNumber(value: unknown): number {
