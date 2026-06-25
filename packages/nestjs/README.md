@@ -1,16 +1,16 @@
-# @metrics-kit/nestjs
+# @pedropcardoso/metrics-nestjs
 
-NestJS module + injectable `MetricsService` over [`@metrics-kit/core`](../core)
+NestJS module + injectable `MetricsService` over [`@pedropcardoso/metrics-core`](../core)
 (TypeORM).
 
 ```bash
-npm i @metrics-kit/nestjs
+npm i @pedropcardoso/metrics-nestjs
 ```
 
 Peer deps: `@nestjs/common ^10 || ^11`, `typeorm ^0.3`.
 
 ```ts
-import { MetricsModule, MetricsService } from '@metrics-kit/nestjs';
+import { MetricsModule, MetricsService } from '@pedropcardoso/metrics-nestjs';
 
 @Module({
   imports: [MetricsModule.forRoot({ locale: 'pt-BR', timezone: 'America/Sao_Paulo' })],
@@ -39,7 +39,7 @@ export class DashboardService {
 overrides the defaults within a feature module. Precedence:
 **call option > forFeature > forRoot > library default** (`en` / `UTC`).
 
-The full fluent API lives in [`@metrics-kit/core`](../core).
+The full fluent API lives in [`@pedropcardoso/metrics-core`](../core).
 
 ## License
 

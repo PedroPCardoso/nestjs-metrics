@@ -1,6 +1,6 @@
 // Shared types for the Next.js / Node adapters. The ORM-specific entry points
-// live under the isolated subpaths `@metrics-kit/nextjs/prisma` and
-// `@metrics-kit/nextjs/drizzle`, so importing one never loads the other.
+// live under the isolated subpaths `@pedropcardoso/metrics-nextjs/prisma` and
+// `@pedropcardoso/metrics-nextjs/drizzle`, so importing one never loads the other.
 export type {
   SupportedDialect,
   ExecutorSpec,
@@ -11,4 +11,4 @@ export type {
   MetricsOptions,
   TrendsResult,
   GroupedTrendsResult,
-} from '@metrics-kit/core';
+} from '@pedropcardoso/metrics-core';

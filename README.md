@@ -17,9 +17,9 @@ Drizzle, or any driver that can execute a SQL string.
 
 | Package | What it is | Install |
 | --- | --- | --- |
-| [`@metrics-kit/core`](packages/core) | The engine + fluent API. Dual-mode: a TypeORM query builder, or a raw-SQL executor for any driver. | `npm i @metrics-kit/core` |
-| [`@metrics-kit/nestjs`](packages/nestjs) | NestJS module + injectable service (TypeORM). | `npm i @metrics-kit/nestjs` |
-| [`@metrics-kit/nextjs`](packages/nextjs) | Prisma & Drizzle adapters for Next.js / any Node runtime. | `npm i @metrics-kit/nextjs` |
+| [`@pedropcardoso/metrics-core`](packages/core) | The engine + fluent API. Dual-mode: a TypeORM query builder, or a raw-SQL executor for any driver. | `npm i @pedropcardoso/metrics-core` |
+| [`@pedropcardoso/metrics-nestjs`](packages/nestjs) | NestJS module + injectable service (TypeORM). | `npm i @pedropcardoso/metrics-nestjs` |
+| [`@pedropcardoso/metrics-nextjs`](packages/nextjs) | Prisma & Drizzle adapters for Next.js / any Node runtime. | `npm i @pedropcardoso/metrics-nextjs` |
 | [`nestjs-metrics`](packages/nestjs-metrics) | Back-compat façade: re-exports core (`.`) + nestjs (`./nestjs`). | `npm i nestjs-metrics` |
 
 The terminals (`metrics()`, `trends()`, `metricsWithVariations()`) are **async**.
@@ -29,7 +29,7 @@ The terminals (`metrics()`, `trends()`, `metricsWithVariations()`) are **async**
 ### Prisma (Next.js / Node)
 
 ```ts
-import { prismaMetrics } from '@metrics-kit/nextjs/prisma';
+import { prismaMetrics } from '@pedropcardoso/metrics-nextjs/prisma';
 
 const revenueByMonth = await prismaMetrics(prisma, {
   table: 'orders',
@@ -45,7 +45,7 @@ const revenueByMonth = await prismaMetrics(prisma, {
 ### Drizzle (typed table → names + dialect inferred)
 
 ```ts
-import { drizzleMetrics } from '@metrics-kit/nextjs/drizzle';
+import { drizzleMetrics } from '@pedropcardoso/metrics-nextjs/drizzle';
 import { orders } from './schema';
 
 const total = await drizzleMetrics(db, { table: orders, dateColumn: orders.createdAt })
@@ -56,7 +56,7 @@ const total = await drizzleMetrics(db, { table: orders, dateColumn: orders.creat
 ### NestJS / TypeORM
 
 ```ts
-import { MetricsModule, MetricsService } from '@metrics-kit/nestjs';
+import { MetricsModule, MetricsService } from '@pedropcardoso/metrics-nestjs';
 
 @Module({ imports: [MetricsModule.forRoot({ locale: 'pt-BR', timezone: 'America/Sao_Paulo' })] })
 export class AppModule {}
@@ -68,7 +68,7 @@ this.metrics.query(orderRepo.createQueryBuilder('orders')).sumByMonth('amount').
 ### Standalone (TypeORM query builder)
 
 ```ts
-import { Metrics } from '@metrics-kit/core';
+import { Metrics } from '@pedropcardoso/metrics-core';
 
 await Metrics.query(orderRepo.createQueryBuilder('orders')).count().metrics();
 ```

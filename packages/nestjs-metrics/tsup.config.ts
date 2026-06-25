@@ -7,5 +7,5 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   target: 'node18',
-  external: ['@metrics-kit/core', '@metrics-kit/nestjs'],
+  external: ['@pedropcardoso/metrics-core', '@pedropcardoso/metrics-nestjs'],
 });

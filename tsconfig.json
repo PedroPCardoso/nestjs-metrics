@@ -4,12 +4,12 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
-      "@metrics-kit/core": ["packages/core/src/index.ts"],
-      "@metrics-kit/core/*": ["packages/core/src/*"],
-      "@metrics-kit/nestjs": ["packages/nestjs/src/index.ts"],
-      "@metrics-kit/nextjs": ["packages/nextjs/src/index.ts"],
-      "@metrics-kit/nextjs/prisma": ["packages/nextjs/src/prisma/index.ts"],
-      "@metrics-kit/nextjs/drizzle": ["packages/nextjs/src/drizzle/index.ts"],
+      "@pedropcardoso/metrics-core": ["packages/core/src/index.ts"],
+      "@pedropcardoso/metrics-core/*": ["packages/core/src/*"],
+      "@pedropcardoso/metrics-nestjs": ["packages/nestjs/src/index.ts"],
+      "@pedropcardoso/metrics-nextjs": ["packages/nextjs/src/index.ts"],
+      "@pedropcardoso/metrics-nextjs/prisma": ["packages/nextjs/src/prisma/index.ts"],
+      "@pedropcardoso/metrics-nextjs/drizzle": ["packages/nextjs/src/drizzle/index.ts"],
       "@core/*": ["packages/core/src/*"]
     }
   },

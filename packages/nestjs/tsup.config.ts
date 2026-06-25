@@ -7,5 +7,5 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   target: 'node18',
-  external: ['@metrics-kit/core'],
+  external: ['@pedropcardoso/metrics-core'],
 });
