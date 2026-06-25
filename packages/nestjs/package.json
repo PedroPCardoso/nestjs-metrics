@@ -1,7 +1,7 @@
 {
-  "name": "@metrics-kit/nestjs",
+  "name": "@pedropcardoso/metrics-nestjs",
   "version": "0.2.0",
-  "description": "NestJS module + service over @metrics-kit/core (TypeORM).",
+  "description": "NestJS module + service over @pedropcardoso/metrics-core (TypeORM).",
   "keywords": [
     "nestjs",
     "typeorm",
@@ -42,7 +42,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@metrics-kit/core": "^0.2.0"
+    "@pedropcardoso/metrics-core": "^0.2.0"
   },
   "peerDependencies": {
     "@nestjs/common": "^10 || ^11",

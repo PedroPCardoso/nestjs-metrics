@@ -8,11 +8,11 @@ const r = (p: string) => resolve(__dirname, p);
 export default defineConfig({
   resolve: {
     alias: {
-      '@metrics-kit/core': r('packages/core/src/index.ts'),
-      '@metrics-kit/nestjs': r('packages/nestjs/src/index.ts'),
-      '@metrics-kit/nextjs/prisma': r('packages/nextjs/src/prisma/index.ts'),
-      '@metrics-kit/nextjs/drizzle': r('packages/nextjs/src/drizzle/index.ts'),
-      '@metrics-kit/nextjs': r('packages/nextjs/src/index.ts'),
+      '@pedropcardoso/metrics-core': r('packages/core/src/index.ts'),
+      '@pedropcardoso/metrics-nestjs': r('packages/nestjs/src/index.ts'),
+      '@pedropcardoso/metrics-nextjs/prisma': r('packages/nextjs/src/prisma/index.ts'),
+      '@pedropcardoso/metrics-nextjs/drizzle': r('packages/nextjs/src/drizzle/index.ts'),
+      '@pedropcardoso/metrics-nextjs': r('packages/nextjs/src/index.ts'),
       '@core': r('packages/core/src'),
     },
   },

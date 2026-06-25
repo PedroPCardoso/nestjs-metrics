@@ -7,7 +7,7 @@ import {
   type Row,
   type SqlExecutor,
   type SupportedDialect,
-} from '@metrics-kit/core';
+} from '@pedropcardoso/metrics-core';
 
 /**
  * A Drizzle db exposes the underlying driver as `$client`. Duck-typed so the

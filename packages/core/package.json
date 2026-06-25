@@ -1,5 +1,5 @@
 {
-  "name": "@metrics-kit/core",
+  "name": "@pedropcardoso/metrics-core",
   "version": "0.2.0",
   "description": "ORM-agnostic metrics & trends engine. Dual-mode: TypeORM query builder or a raw-SQL executor (Prisma/Drizzle/any driver).",
   "keywords": [

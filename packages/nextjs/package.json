@@ -1,5 +1,5 @@
 {
-  "name": "@metrics-kit/nextjs",
+  "name": "@pedropcardoso/metrics-nextjs",
   "version": "0.2.0",
   "description": "Metrics & trends for Next.js / any Node runtime, over Prisma or Drizzle.",
   "keywords": [
@@ -53,7 +53,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@metrics-kit/core": "^0.2.0"
+    "@pedropcardoso/metrics-core": "^0.2.0"
   },
   "peerDependencies": {
     "@prisma/client": "*",

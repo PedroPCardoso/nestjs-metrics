@@ -1,7 +1,7 @@
 {
   "name": "metrics-kit-monorepo",
   "private": true,
-  "description": "Monorepo for @metrics-kit/* and the nestjs-metrics façade.",
+  "description": "Monorepo for @pedropcardoso/metrics-* and the nestjs-metrics façade.",
   "license": "MIT",
   "workspaces": [
     "packages/core",
@@ -10,7 +10,7 @@
     "packages/nestjs-metrics"
   ],
   "scripts": {
-    "build": "npm run build -w @metrics-kit/core && npm run build -w @metrics-kit/nestjs && npm run build -w @metrics-kit/nextjs && npm run build -w nestjs-metrics",
+    "build": "npm run build -w @pedropcardoso/metrics-core && npm run build -w @pedropcardoso/metrics-nestjs && npm run build -w @pedropcardoso/metrics-nextjs && npm run build -w nestjs-metrics",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",

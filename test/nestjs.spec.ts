@@ -3,8 +3,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { Inject, Injectable, Module } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { DataSource } from 'typeorm';
-import { Metrics, metricsFor, TrendsResult, withMetrics } from '@metrics-kit/core';
-import { MetricsModule, MetricsService } from '@metrics-kit/nestjs';
+import { Metrics, metricsFor, TrendsResult, withMetrics } from '@pedropcardoso/metrics-core';
+import { MetricsModule, MetricsService } from '@pedropcardoso/metrics-nestjs';
 import {
   Order,
   createOrdersDataSource,

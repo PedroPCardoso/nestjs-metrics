@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DataSource } from 'typeorm';
-import { GroupedTrendsResult, Metrics } from '@metrics-kit/core';
+import { GroupedTrendsResult, Metrics } from '@pedropcardoso/metrics-core';
 import {
   allTestDrivers,
   createOrdersDataSource,

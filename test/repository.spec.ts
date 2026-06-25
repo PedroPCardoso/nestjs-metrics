@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DataSource } from 'typeorm';
-import { Metrics, metricsFor, withMetrics } from '@metrics-kit/core';
+import { Metrics, metricsFor, withMetrics } from '@pedropcardoso/metrics-core';
 import {
   Order,
   createOrdersDataSource,

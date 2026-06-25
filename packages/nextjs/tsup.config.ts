@@ -7,5 +7,5 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   target: 'node18',
-  external: ['@metrics-kit/core', '@prisma/client', 'drizzle-orm'],
+  external: ['@pedropcardoso/metrics-core', '@prisma/client', 'drizzle-orm'],
 });

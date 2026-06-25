@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { prismaMetrics, type PrismaClientLike } from '@metrics-kit/nextjs/prisma';
-import { drizzleMetrics, type DrizzleClientLike } from '@metrics-kit/nextjs/drizzle';
+import { prismaMetrics, type PrismaClientLike } from '@pedropcardoso/metrics-nextjs/prisma';
+import { drizzleMetrics, type DrizzleClientLike } from '@pedropcardoso/metrics-nextjs/drizzle';
 
 /**
  * The Prisma and Drizzle adapters are thin wrappers over the core executor.

@@ -1,14 +1,14 @@
-# @metrics-kit/core
+# @pedropcardoso/metrics-core
 
 The ORM-agnostic metrics & trends engine and its fluent API. Two entry points:
 
 - `Metrics.query(qb)` — over a **TypeORM** `SelectQueryBuilder`.
 - `Metrics.queryExecutor(dataSource, spec)` — over **any driver** via a
   `(sql, params) => rows` executor (the basis of the Prisma/Drizzle adapters in
-  [`@metrics-kit/nextjs`](../nextjs)).
+  [`@pedropcardoso/metrics-nextjs`](../nextjs)).
 
 ```bash
-npm i @metrics-kit/core
+npm i @pedropcardoso/metrics-core
 ```
 
 `typeorm` is an **optional** peer — only needed for the `Metrics.query` path.
@@ -19,7 +19,7 @@ The terminals (`metrics()`, `trends()`, `metricsWithVariations()`) are **async**
 ### TypeORM query builder
 
 ```ts
-import { Metrics, metricsFor, withMetrics } from '@metrics-kit/core';
+import { Metrics, metricsFor, withMetrics } from '@pedropcardoso/metrics-core';
 
 await Metrics.query(orderRepo.createQueryBuilder('orders')).sum('amount').byMonth().forYear(2026).trends();
 await metricsFor(orderRepo).count().byYear().metrics();           // repository helper
@@ -29,7 +29,7 @@ await withMetrics(orderRepo).metrics().countByMonth().trends();   // extend the 
 ### Any driver (executor mode)
 
 ```ts
-import { Metrics, type DataSource } from '@metrics-kit/core';
+import { Metrics, type DataSource } from '@pedropcardoso/metrics-core';
 
 const dataSource: DataSource = {
   dialect: 'postgres',
