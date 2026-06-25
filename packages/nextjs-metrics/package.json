@@ -1,7 +1,7 @@
 {
-  "name": "@pedropcardoso/metrics-nextjs",
-  "version": "0.2.0",
-  "description": "Metrics & trends for Next.js / any Node runtime, over Prisma or Drizzle.",
+  "name": "nextjs-metrics",
+  "version": "0.1.0",
+  "description": "Metrics & trends for Next.js / any Node runtime, over Prisma or Drizzle. (Built on nestjs-metrics-core.)",
   "keywords": [
     "nextjs",
     "prisma",
@@ -16,7 +16,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/PedroPCardoso/nestjs-metrics.git",
-    "directory": "packages/nextjs"
+    "directory": "packages/nextjs-metrics"
   },
   "type": "commonjs",
   "main": "./dist/index.js",
@@ -26,20 +26,10 @@
       "require": "./dist/index.js",
       "types": "./dist/index.d.ts"
     },
-    "./prisma": {
-      "require": "./dist/prisma/index.js",
-      "types": "./dist/prisma/index.d.ts"
-    },
-    "./drizzle": {
-      "require": "./dist/drizzle/index.js",
-      "types": "./dist/drizzle/index.d.ts"
-    },
     "./package.json": "./package.json"
   },
   "files": [
-    "dist",
-    "prisma",
-    "drizzle"
+    "dist"
   ],
   "engines": {
     "node": ">=18"
@@ -53,17 +43,21 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@pedropcardoso/metrics-core": "^0.2.0"
+    "nestjs-metrics-core": "^0.1.0"
   },
   "peerDependencies": {
     "@prisma/client": "*",
-    "drizzle-orm": "*"
+    "drizzle-orm": "*",
+    "typeorm": "^0.3"
   },
   "peerDependenciesMeta": {
     "@prisma/client": {
       "optional": true
     },
     "drizzle-orm": {
+      "optional": true
+    },
+    "typeorm": {
       "optional": true
     }
   }

@@ -1,62 +1,30 @@
-# metrics-kit
+# metrics
 
 Generate **metrics** (aggregate values) and **trends** (chart-ready time series)
 from your database, through a fluent API — a TypeScript port of
 [`eliseekn/laravel-metrics`](https://github.com/eliseekn/laravel-metrics).
 
-The engine is **ORM-agnostic**: the same fluent API runs over TypeORM, Prisma,
-Drizzle, or any driver that can execute a SQL string.
-
-- Aggregates: `count` / `sum` / `average` / `max` / `min`
-- Periods: `byDay` / `byWeek` / `byMonth` / `byYear`, windows, date ranges
-- SQLite, PostgreSQL and MySQL/MariaDB, with **ISO-8601 weeks** everywhere
-- Locale-translated labels (Luxon) and **timezone-aware bucketing** (Postgres/MySQL)
-- `fillMissingData`, `groupData` (multi-series), percentage trends, variations
+One shared **ORM-agnostic engine**, with adapters per stack — the same fluent API
+runs over TypeORM, Prisma or Drizzle.
 
 ## Packages
 
 | Package | What it is | Install |
 | --- | --- | --- |
-| [`@pedropcardoso/metrics-core`](packages/core) | The engine + fluent API. Dual-mode: a TypeORM query builder, or a raw-SQL executor for any driver. | `npm i @pedropcardoso/metrics-core` |
-| [`@pedropcardoso/metrics-nestjs`](packages/nestjs) | NestJS module + injectable service (TypeORM). | `npm i @pedropcardoso/metrics-nestjs` |
-| [`@pedropcardoso/metrics-nextjs`](packages/nextjs) | Prisma & Drizzle adapters for Next.js / any Node runtime. | `npm i @pedropcardoso/metrics-nextjs` |
-| [`nestjs-metrics`](packages/nestjs-metrics) | Back-compat façade: re-exports core (`.`) + nestjs (`./nestjs`). | `npm i nestjs-metrics` |
+| [`nestjs-metrics-core`](packages/core) | The engine + fluent API. Dual-mode: a TypeORM query builder, or a raw-SQL executor for any driver. | `npm i nestjs-metrics-core` |
+| [`nestjs-metrics`](packages/nestjs-metrics) | The engine (`.`) + a NestJS module (`/nestjs`). | `npm i nestjs-metrics` |
+| [`nextjs-metrics`](packages/nextjs-metrics) | The engine + Prisma & Drizzle adapters, for Next.js / any Node runtime. | `npm i nextjs-metrics` |
 
-The terminals (`metrics()`, `trends()`, `metricsWithVariations()`) are **async**.
+`nestjs-metrics` and `nextjs-metrics` both depend on `nestjs-metrics-core` — one
+engine, two framework-flavoured packages. The terminals (`metrics()`, `trends()`,
+`metricsWithVariations()`) are **async**.
 
 ## Quick start
 
-### Prisma (Next.js / Node)
+### NestJS / TypeORM — `nestjs-metrics`
 
 ```ts
-import { prismaMetrics } from '@pedropcardoso/metrics-nextjs/prisma';
-
-const revenueByMonth = await prismaMetrics(prisma, {
-  table: 'orders',
-  dateColumn: 'created_at',
-  dialect: 'postgres',
-})
-  .sumByMonth('amount')
-  .forYear(2026)
-  .fillMissingData()
-  .trends(); // → { labels: ['January', …], data: [1200, 980, …] }
-```
-
-### Drizzle (typed table → names + dialect inferred)
-
-```ts
-import { drizzleMetrics } from '@pedropcardoso/metrics-nextjs/drizzle';
-import { orders } from './schema';
-
-const total = await drizzleMetrics(db, { table: orders, dateColumn: orders.createdAt })
-  .sum('amount')
-  .metrics(); // → number
-```
-
-### NestJS / TypeORM
-
-```ts
-import { MetricsModule, MetricsService } from '@pedropcardoso/metrics-nestjs';
+import { MetricsModule, MetricsService } from 'nestjs-metrics/nestjs';
 
 @Module({ imports: [MetricsModule.forRoot({ locale: 'pt-BR', timezone: 'America/Sao_Paulo' })] })
 export class AppModule {}
@@ -65,21 +33,44 @@ export class AppModule {}
 this.metrics.query(orderRepo.createQueryBuilder('orders')).sumByMonth('amount').forYear(2026).trends();
 ```
 
-### Standalone (TypeORM query builder)
+### Prisma — `nextjs-metrics`
 
 ```ts
-import { Metrics } from '@pedropcardoso/metrics-core';
+import { prismaMetrics } from 'nextjs-metrics';
 
-await Metrics.query(orderRepo.createQueryBuilder('orders')).count().metrics();
+await prismaMetrics(prisma, { table: 'orders', dateColumn: 'created_at', dialect: 'postgres' })
+  .sumByMonth('amount').forYear(2026).fillMissingData().trends();
 ```
 
-See each package's README for the full API and options. Intentional differences
-from the original Laravel library are listed in [DIVERGENCES.md](./DIVERGENCES.md);
-the architecture is in [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
+### Drizzle — `nextjs-metrics` (typed table → names + dialect inferred)
+
+```ts
+import { drizzleMetrics } from 'nextjs-metrics';
+import { orders } from './schema';
+
+await drizzleMetrics(db, { table: orders, dateColumn: orders.createdAt }).sum('amount').metrics();
+```
+
+### Standalone engine — `nestjs-metrics-core`
+
+```ts
+import { Metrics, type DataSource } from 'nestjs-metrics-core';
+
+// TypeORM query builder
+await Metrics.query(orderRepo.createQueryBuilder('orders')).count().metrics();
+
+// or any driver, via the executor mode
+const dataSource: DataSource = { dialect: 'postgres', execute: (sql, params) => pool.query(sql, params).then((r) => r.rows) };
+await Metrics.queryExecutor(dataSource, { table: 'orders', dateColumn: 'created_at' }).sumByMonth('amount').trends();
+```
+
+See each package's README for the full API. Intentional differences from the
+original Laravel library are in [DIVERGENCES.md](./DIVERGENCES.md); architecture in
+[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
 ## Development
 
-This is an npm-workspaces monorepo. Everything runs in Docker:
+npm-workspaces monorepo. Everything runs in Docker:
 
 ```bash
 docker compose run --rm dev npm install

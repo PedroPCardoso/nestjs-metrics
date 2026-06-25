@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DataSource } from 'typeorm';
-import { Metrics } from '@pedropcardoso/metrics-core';
+import { Metrics } from 'nestjs-metrics-core';
 import {
   allTestDrivers,
   createOrdersDataSource,

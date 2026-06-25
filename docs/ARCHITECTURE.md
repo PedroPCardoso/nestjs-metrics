@@ -39,7 +39,7 @@ O resultado deve:
 
 - Não é um app/serviço HTTP — é uma lib (um app demo é roadmap, ver §13).
 - Não fornece UI de gráficos; entrega apenas o **payload** (`{ labels, data }`) pronto para Chart.js/ApexCharts/etc.
-- ~~Não suporta Prisma/Knex/Drizzle na v1.~~ **(Decisão 1, atualizada):** a abstração foi **extraída** quando o 2º backend surgiu (modo executor, ver §6.4). O core agora é dual-mode — o caminho TypeORM permanece intacto; um `ExecutorBackend` agnóstico de ORM emite SQL cru para qualquer `DataSource` `(sql, params) => rows`. Pacotes adapter (Prisma/Drizzle) são publicados como `@pedropcardoso/metrics-*` (PRD #16).
+- ~~Não suporta Prisma/Knex/Drizzle na v1.~~ **(Decisão 1, atualizada):** a abstração foi **extraída** quando o 2º backend surgiu (modo executor, ver §6.4). O core agora é dual-mode — o caminho TypeORM permanece intacto; um `ExecutorBackend` agnóstico de ORM emite SQL cru para qualquer `DataSource` `(sql, params) => rows`. O engine vive em `nestjs-metrics-core`; `nestjs-metrics` (NestJS) e `nextjs-metrics` (Prisma/Drizzle) dependem dele (PRD #16).
 
 ---
 

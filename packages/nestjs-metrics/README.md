@@ -1,25 +1,61 @@
 # nestjs-metrics
 
-Back-compat façade for the [metrics-kit](https://github.com/PedroPCardoso/nestjs-metrics)
-monorepo. It re-exports:
+Metrics & trends for **NestJS / TypeORM**. The engine ([`nestjs-metrics-core`](../core))
+plus a NestJS module — two entry points:
 
-- `nestjs-metrics` → [`@pedropcardoso/metrics-core`](../core) (the engine + fluent API)
-- `nestjs-metrics/nestjs` → [`@pedropcardoso/metrics-nestjs`](../nestjs) (the NestJS module)
+| Import | For | Optional peer |
+| --- | --- | --- |
+| `nestjs-metrics` | the engine + fluent API | `typeorm` |
+| `nestjs-metrics/nestjs` | the NestJS module + service | `@nestjs/common` |
 
 ```bash
-npm i nestjs-metrics
+npm install nestjs-metrics
 ```
+
+`nestjs-metrics-core` comes along automatically. The terminals (`metrics()`,
+`trends()`, `metricsWithVariations()`) are **async**.
+
+## NestJS module
 
 ```ts
-import { Metrics, metricsFor } from 'nestjs-metrics';
 import { MetricsModule, MetricsService } from 'nestjs-metrics/nestjs';
+
+@Module({
+  imports: [MetricsModule.forRoot({ locale: 'pt-BR', timezone: 'America/Sao_Paulo' })],
+})
+export class AppModule {}
+
+@Injectable()
+export class DashboardService {
+  constructor(
+    private readonly metrics: MetricsService,
+    @InjectRepository(Order) private readonly orders: Repository<Order>,
+  ) {}
+
+  monthlyRevenue() {
+    return this.metrics
+      .query(this.orders.createQueryBuilder('orders'))
+      .sumByMonth('amount', 12)
+      .forYear(2026)
+      .fillMissingData()
+      .trends();
+  }
+}
 ```
 
-Existing code keeps working unchanged. For new projects you can depend on
-`@pedropcardoso/metrics-core` / `@pedropcardoso/metrics-nestjs` directly, and on
-[`@pedropcardoso/metrics-nextjs`](../nextjs) for Prisma/Drizzle.
+`MetricsModule.forRoot` is global; `MetricsModule.forFeature({ locale, timezone })`
+overrides within a feature module. Precedence:
+**call option > forFeature > forRoot > library default** (`en` / `UTC`).
 
-See [`@pedropcardoso/metrics-core`](../core) for the full API.
+## Standalone
+
+```ts
+import { Metrics, metricsFor, withMetrics } from 'nestjs-metrics';
+
+await Metrics.query(orderRepo.createQueryBuilder('orders')).sum('amount').byMonth().forYear(2026).trends();
+```
+
+The full fluent API lives in [`nestjs-metrics-core`](../core).
 
 ## License
 

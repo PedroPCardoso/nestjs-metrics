@@ -1,4 +1,3 @@
-import { getTableColumns, getTableName } from 'drizzle-orm';
 import type { Column, Table } from 'drizzle-orm';
 import {
   MetricsBuilder,
@@ -7,7 +6,7 @@ import {
   type Row,
   type SqlExecutor,
   type SupportedDialect,
-} from '@pedropcardoso/metrics-core';
+} from 'nestjs-metrics-core';
 
 /**
  * A Drizzle db exposes the underlying driver as `$client`. Duck-typed so the
@@ -50,8 +49,14 @@ export function drizzleMetrics(
   );
 }
 
+/** Lazily load drizzle-orm — only needed when a typed table object is passed. */
+function drizzleHelpers(): typeof import('drizzle-orm') {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  return require('drizzle-orm') as typeof import('drizzle-orm');
+}
+
 function tableName(table: string | Table): string {
-  return typeof table === 'string' ? table : getTableName(table);
+  return typeof table === 'string' ? table : drizzleHelpers().getTableName(table);
 }
 
 function columnName(column: string | Column): string {
@@ -75,7 +80,7 @@ function resolveDialect(spec: DrizzleMetricsSpec): SupportedDialect {
 
 /** Infer the dialect from a Drizzle column's brand (e.g. `SQLiteText` → sqlite). */
 function detectDialect(table: Table): SupportedDialect | undefined {
-  const columns = Object.values(getTableColumns(table));
+  const columns = Object.values(drizzleHelpers().getTableColumns(table));
   const brand = columns[0]?.columnType ?? '';
   if (brand.startsWith('SQLite')) return 'sqlite';
   if (brand.startsWith('Pg')) return 'postgres';

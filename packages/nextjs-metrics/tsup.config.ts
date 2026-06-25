@@ -7,5 +7,5 @@ export default defineConfig({
   clean: true,
   sourcemap: true,
   target: 'node18',
-  external: ['@pedropcardoso/metrics-core'],
+  external: ['nestjs-metrics-core', '@prisma/client', 'drizzle-orm'],
 });

@@ -4,7 +4,7 @@ import {
   type MetricsOptions,
   type Row,
   type SupportedDialect,
-} from '@pedropcardoso/metrics-core';
+} from 'nestjs-metrics-core';
 
 /**
  * The slice of a PrismaClient we use: `$queryRawUnsafe` runs a parameterized SQL
