@@ -15,7 +15,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/PedroPCardoso/nestjs-metrics.git",
+    "url": "git+https://github.com/PedroPCardoso/metrics-kit.git",
     "directory": "packages/nextjs-metrics"
   },
   "type": "commonjs",

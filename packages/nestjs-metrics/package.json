@@ -15,12 +15,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/PedroPCardoso/nestjs-metrics.git",
+    "url": "git+https://github.com/PedroPCardoso/metrics-kit.git",
     "directory": "packages/nestjs-metrics"
   },
-  "homepage": "https://github.com/PedroPCardoso/nestjs-metrics#readme",
+  "homepage": "https://github.com/PedroPCardoso/metrics-kit#readme",
   "bugs": {
-    "url": "https://github.com/PedroPCardoso/nestjs-metrics/issues"
+    "url": "https://github.com/PedroPCardoso/metrics-kit/issues"
   },
   "type": "commonjs",
   "main": "./dist/index.js",
