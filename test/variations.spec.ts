@@ -5,7 +5,7 @@ import {
   InvalidVariationsCountException,
   Metrics,
   Period,
-} from '@pedropcardoso/metrics-core';
+} from 'nestjs-metrics-core';
 import {
   allTestDrivers,
   createOrdersDataSource,

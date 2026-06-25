@@ -8,7 +8,7 @@ import {
   InvalidVariationsCountException,
   Metrics,
   Period,
-} from '@pedropcardoso/metrics-core';
+} from 'nestjs-metrics-core';
 import { createOrdersDataSource, ordersQuery } from './helpers/orders-datasource';
 
 describe('input validation & identifier safety', () => {

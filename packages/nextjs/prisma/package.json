@@ -1,5 +1,0 @@
-{
-  "main": "../dist/prisma/index.js",
-  "types": "../dist/prisma/index.d.ts",
-  "sideEffects": false
-}

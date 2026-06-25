@@ -7,14 +7,13 @@ const r = (p: string) => resolve(__dirname, p);
 
 export default defineConfig({
   resolve: {
-    alias: {
-      '@pedropcardoso/metrics-core': r('packages/core/src/index.ts'),
-      '@pedropcardoso/metrics-nestjs': r('packages/nestjs/src/index.ts'),
-      '@pedropcardoso/metrics-nextjs/prisma': r('packages/nextjs/src/prisma/index.ts'),
-      '@pedropcardoso/metrics-nextjs/drizzle': r('packages/nextjs/src/drizzle/index.ts'),
-      '@pedropcardoso/metrics-nextjs': r('packages/nextjs/src/index.ts'),
-      '@core': r('packages/core/src'),
-    },
+    alias: [
+      { find: /^nestjs-metrics-core$/, replacement: r('packages/core/src/index.ts') },
+      { find: /^nestjs-metrics\/nestjs$/, replacement: r('packages/nestjs-metrics/src/nestjs/index.ts') },
+      { find: /^nestjs-metrics$/, replacement: r('packages/nestjs-metrics/src/index.ts') },
+      { find: /^nextjs-metrics$/, replacement: r('packages/nextjs-metrics/src/index.ts') },
+      { find: /^@core\/(.*)$/, replacement: r('packages/core/src') + '/$1' },
+    ],
   },
   test: {
     include: ['test/**/*.spec.ts'],

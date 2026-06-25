@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { DataSource } from 'typeorm';
-import { InvalidTimezoneException, Metrics, TrendsResult } from '@pedropcardoso/metrics-core';
+import { InvalidTimezoneException, Metrics, TrendsResult } from 'nestjs-metrics-core';
 import {
   allTestDrivers,
   createOrdersDataSource,

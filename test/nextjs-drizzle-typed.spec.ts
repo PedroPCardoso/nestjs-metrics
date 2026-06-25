@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { drizzleMetrics } from '@pedropcardoso/metrics-nextjs/drizzle';
+import { drizzleMetrics } from 'nextjs-metrics';
 
 /**
  * Real drizzle-orm: passing the typed table/column objects lets the adapter

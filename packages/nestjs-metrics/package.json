@@ -1,7 +1,7 @@
 {
   "name": "nestjs-metrics",
-  "version": "0.2.3",
-  "description": "Generate metrics and trends data from your TypeORM entities for your dashboards. (Façade over @pedropcardoso/metrics-core + @pedropcardoso/metrics-nestjs.)",
+  "version": "0.2.4",
+  "description": "Generate metrics and trends from your TypeORM entities for your dashboards, with a NestJS module. (Built on nestjs-metrics-core.)",
   "keywords": [
     "nestjs",
     "typeorm",
@@ -52,8 +52,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@pedropcardoso/metrics-core": "^0.2.0",
-    "@pedropcardoso/metrics-nestjs": "^0.2.0"
+    "nestjs-metrics-core": "^0.1.0"
   },
   "peerDependencies": {
     "@nestjs/common": "^10 || ^11",

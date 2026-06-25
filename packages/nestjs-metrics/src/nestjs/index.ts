@@ -1,2 +1,3 @@
-// Façade: the NestJS module/service, re-exported under `nestjs-metrics/nestjs`.
-export * from '@pedropcardoso/metrics-nestjs';
+export { MetricsModule } from './metrics.module';
+export { MetricsService } from './metrics.service';
+export type { MetricsModuleOptions } from './tokens';
