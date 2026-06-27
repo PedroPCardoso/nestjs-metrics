@@ -25,14 +25,5 @@ export interface VariationResult {
   };
 }
 
-import type { CacheOptions } from './cache/types';
-
 /** Per-call configuration for a metrics query. */
-export interface MetricsOptions {
-  /** BCP-47 locale used to translate period labels. Defaults to `en`. */
-  locale?: string;
-  /** IANA timezone the date column is bucketed in. Defaults to `UTC`. */
-  timezone?: string;
-  /** Optional query-result caching. Disabled by default. */
-  cache?: CacheOptions;
-}
+export type { MetricsOptions } from './options.schema';

@@ -19,6 +19,16 @@ export type {
   VariationResult,
   MetricsOptions,
 } from './types';
+export type { MetricsModuleOptions } from './options.schema';
+export {
+  MetricsOptionsSchema,
+  ExecutorSpecSchema,
+  MetricsModuleOptionsSchema,
+  ValidationError,
+  validateMetricsOptions,
+  validateExecutorSpec,
+  validateMetricsModuleOptions,
+} from './options.schema';
 export type { CacheOptions, CacheStore, CacheStats } from './cache/types';
 export { MemoryCacheStore } from './cache/memory-cache.store';
 export { InvalidPeriodException } from './exceptions/invalid-period.exception';

@@ -5,6 +5,7 @@ import { Period } from './enums/period.enum';
 import { InvalidPeriodException } from './exceptions/invalid-period.exception';
 import { InvalidVariationsCountException } from './exceptions/invalid-variations-count.exception';
 import { assertAggregate, assertDateFormat, assertSafeIdentifier, assertTimezone } from './validation';
+import { validateExecutorSpec, validateMetricsOptions } from './options.schema';
 import { dialectFor } from './dialects/dialect.factory';
 import { DatePart, SqlDialect } from './dialects/sql-dialect.interface';
 import { QueryBackend } from './backend/query-backend.interface';
@@ -39,6 +40,13 @@ const DEFAULT_TIMEZONE = 'UTC';
  * (metrics, trends) execute against the database and are async.
  */
 export class MetricsBuilder<T extends ObjectLiteral> {
+  /**
+   * Set to `true` to skip Zod schema validation on constructor and queryExecutor
+   * entry points. Useful when the caller already validates or when every
+   * microsecond matters in hot paths.
+   */
+  static skipValidation = false;
+
   private tableName: string;
   private readonly dialect: SqlDialect;
   private readonly locale: string;
@@ -76,6 +84,9 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     options: MetricsOptions = {},
     cacheStore?: CacheStore,
   ) {
+    if (!MetricsBuilder.skipValidation) {
+      validateMetricsOptions(options);
+    }
     this.tableName = tableName;
     this.dialect = backend.dialect;
     this.locale = options.locale ?? DEFAULT_LOCALE;
@@ -144,6 +155,9 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     options?: MetricsOptions,
     cacheStore?: CacheStore,
   ): MetricsBuilder<R> {
+    if (!MetricsBuilder.skipValidation) {
+      validateExecutorSpec(spec);
+    }
     assertSafeIdentifier(spec.table);
     const dialect = dialectFor(dataSource.dialect);
     const from = spec.from ?? dialect.escapeId(spec.table);

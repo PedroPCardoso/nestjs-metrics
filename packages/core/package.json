@@ -42,7 +42,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "luxon": "^3"
+    "luxon": "^3",
+    "zod": "^3"
   },
   "peerDependencies": {
     "typeorm": "^0.3"
