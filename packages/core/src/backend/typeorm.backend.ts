@@ -3,6 +3,8 @@ import { Row } from '../datasource';
 import { registerSqliteTz, BetterSqlite3Db } from '../dates/sqlite-tz';
 import { dialectFor } from '../dialects/dialect.factory';
 import { SqlDialect } from '../dialects/sql-dialect.interface';
+import { MetricsError } from '../exceptions/metrics.error';
+import { QueryExecutionError } from '../exceptions/query-execution.exception';
 import { QueryBackend } from './query-backend.interface';
 import { QueryPlan } from './query-plan';
 
@@ -47,7 +49,19 @@ export class TypeOrmBackend<T extends ObjectLiteral> implements QueryBackend {
     if (plan.tz) {
       this.registerTz();
     }
-    return q.getRawMany<Row>();
+    try {
+      return await q.getRawMany<Row>();
+    } catch (err) {
+      if (err instanceof MetricsError) {
+        throw err;
+      }
+      throw new QueryExecutionError(err, {
+        query: q.getSql(),
+        params: plan.params,
+        dialect: this.qb.connection.options.type,
+        operation: 'execute',
+      });
+    }
   }
 
   /** Bind the SQLite tz user-function when bucketing in a non-UTC timezone. */
