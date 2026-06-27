@@ -23,6 +23,18 @@ export interface PrismaMetricsSpec extends ExecutorSpec {
 /**
  * Build a metrics query over a Prisma client. The emitted SQL runs through
  * `$queryRawUnsafe`; values are bound positionally by the core executor.
+ *
+ * @param prisma - A PrismaClient (or anything exposing `$queryRawUnsafe`).
+ * @param spec - Source table/columns plus the explicit `dialect` Prisma can't report at runtime.
+ * @param options - Locale, timezone and cache options for the query.
+ * @returns A metrics builder ready for chaining.
+ *
+ * @example
+ * ```ts
+ * const series = await prismaMetrics(prisma, { table: 'orders', dateColumn: 'created_at', dialect: 'postgres' })
+ *   .sumByMonth('amount', 3)
+ *   .trends();
+ * ```
  */
 export function prismaMetrics(
   prisma: PrismaClientLike,

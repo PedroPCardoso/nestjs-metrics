@@ -3,5 +3,8 @@ dist
 *.log
 .DS_Store
 
+# Generated API reference (run `npm run docs:api`)
+docs/api
+
 # Vendored reference implementation (eliseekn/laravel-metrics) — has its own git history.
 laravel-metrics/

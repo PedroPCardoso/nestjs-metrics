@@ -1,0 +1,17 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "name": "metrics-kit API",
+  "entryPoints": [
+    "packages/core/src/index.ts",
+    "packages/nestjs-metrics/src/nestjs/index.ts",
+    "packages/nextjs-metrics/src/prisma/index.ts",
+    "packages/nextjs-metrics/src/drizzle/index.ts"
+  ],
+  "tsconfig": "tsconfig.json",
+  "out": "docs/api",
+  "readme": "none",
+  "excludeInternal": true,
+  "excludePrivate": true,
+  "excludeExternals": true,
+  "githubPages": false
+}

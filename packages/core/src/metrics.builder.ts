@@ -35,9 +35,28 @@ const DEFAULT_LOCALE = 'en';
 const DEFAULT_TIMEZONE = 'UTC';
 
 /**
- * Fluent builder that turns a TypeORM SelectQueryBuilder into chart-ready
- * metrics and trends. The chain is synchronous; only the terminal methods
- * (metrics, trends) execute against the database and are async.
+ * Fluent builder that turns a query source into chart-ready metrics and trends.
+ * It runs over a TypeORM `SelectQueryBuilder` (see {@link query}) or, ORM-agnostically,
+ * over a {@link DataSource} such as Prisma or Drizzle (see {@link queryExecutor}). The
+ * chain is synchronous; only the terminal methods ({@link metrics}, {@link trends},
+ * {@link metricsWithVariations}) execute against the database and are async.
+ *
+ * @typeParam T - Row/entity shape the underlying query produces.
+ *
+ * @example
+ * ```ts
+ * // Single value: total revenue.
+ * const revenue = await Metrics.query(orderRepo.createQueryBuilder('order'))
+ *   .sum('amount')
+ *   .metrics();
+ *
+ * // Time series: order counts for the last 3 months.
+ * const series = await Metrics.query(orderRepo.createQueryBuilder('order'))
+ *   .countByMonth('id', 3)
+ *   .trends();
+ * ```
+ *
+ * @see {@link metricsFor} and {@link withMetrics} for repository-centric entry points.
  */
 export class MetricsBuilder<T extends ObjectLiteral> {
   /**
@@ -78,6 +97,10 @@ export class MetricsBuilder<T extends ObjectLiteral> {
   private day: number = this.now.getDate();
   private week: number = isoWeek(this.now);
 
+  /**
+   * @internal Construct via the {@link query} or {@link queryExecutor} factories
+   * rather than directly; the constructor takes an internal backend.
+   */
   constructor(
     private readonly backend: QueryBackend,
     tableName: string,
@@ -136,7 +159,23 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     return clone;
   }
 
-  /** Entry point over a TypeORM SelectQueryBuilder (the original API). */
+  /**
+   * Entry point over a TypeORM `SelectQueryBuilder` (the original API). The
+   * builder's table alias comes from `qb.alias`, so columns qualify correctly.
+   *
+   * @param qb - The TypeORM query builder to read from.
+   * @param options - Locale, timezone and cache options for the query.
+   * @param cacheStore - Cache backend to use when `options.cache.enabled`; defaults to a shared in-memory store.
+   * @returns A builder ready for chaining.
+   * @throws {@link InvalidTimezoneException} when `options.timezone` is not a valid IANA zone.
+   *
+   * @example
+   * ```ts
+   * const count = await Metrics.query(orderRepo.createQueryBuilder('order'))
+   *   .count()
+   *   .metrics();
+   * ```
+   */
   static query<T extends ObjectLiteral>(
     qb: SelectQueryBuilder<T>,
     options?: MetricsOptions,
@@ -146,8 +185,23 @@ export class MetricsBuilder<T extends ObjectLiteral> {
   }
 
   /**
-   * Entry point over an ORM-agnostic DataSource (Prisma, Drizzle, …). Reads from
-   * `spec.table` (or a raw `spec.from` fragment), bucketing `spec.dateColumn`.
+   * Entry point over an ORM-agnostic {@link DataSource} (Prisma, Drizzle, …).
+   * Reads from `spec.table` (or a raw `spec.from` fragment), bucketing
+   * `spec.dateColumn` and applying any `spec.where` filters to every query.
+   *
+   * @param dataSource - Dialect + SQL executor that runs the emitted queries.
+   * @param spec - Declares the source table/columns and optional filters; see {@link ExecutorSpec}.
+   * @param options - Locale, timezone and cache options for the query.
+   * @param cacheStore - Cache backend to use when `options.cache.enabled`; defaults to a shared in-memory store.
+   * @returns A builder ready for chaining.
+   * @throws {@link InvalidIdentifierException} when `spec.table` is not a plain SQL identifier.
+   *
+   * @example
+   * ```ts
+   * const series = await Metrics.queryExecutor(dataSource, { table: 'orders', dateColumn: 'created_at' })
+   *   .sumByMonth('amount', 6)
+   *   .trends();
+   * ```
    */
   static queryExecutor<R extends ObjectLiteral>(
     dataSource: DataSource,
@@ -185,19 +239,35 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     return this;
   }
 
+  /**
+   * Aggregate by counting rows.
+   * @param column - Column to count (default `id`).
+   * @returns This builder, for chaining.
+   * @throws {@link InvalidIdentifierException} when `column` is not a plain SQL identifier.
+   */
   count(column = 'id'): this {
     return this.aggregate(Aggregate.COUNT, column);
   }
 
   // --- Targeting ----------------------------------------------------------
 
-  /** Bucket by a date column other than `created_at`. */
+  /**
+   * Bucket by a date column other than `created_at`.
+   * @param column - Date column to bucket on.
+   * @returns This builder, for chaining.
+   * @throws {@link InvalidIdentifierException} when `column` is not a plain SQL identifier.
+   */
   dateColumn(column: string): this {
     this.dateColumnRef = this.qualify(column);
     return this;
   }
 
-  /** Override the table used to qualify subsequent columns (e.g. a joined table). */
+  /**
+   * Override the table used to qualify subsequent columns (e.g. a joined table).
+   * @param name - Table name to qualify with from here on.
+   * @returns This builder, for chaining.
+   * @throws {@link InvalidIdentifierException} when `name` is not a plain SQL identifier.
+   */
   table(name: string): this {
     // Stored raw-but-validated; it is driver-escaped each time qualify() runs.
     assertSafeIdentifier(name);
@@ -205,7 +275,24 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     return this;
   }
 
-  /** Group the series by a categorical column instead of by a date period. */
+  /**
+   * Group the series by a categorical column instead of by a date period. Note
+   * that the period/range WHERE filter still applies — to group within a single
+   * year use e.g. `sumByYear('amount', 1).forYear(2024).labelColumn('status')`.
+   *
+   * @param column - Categorical column to group by.
+   * @returns This builder, for chaining.
+   * @throws {@link InvalidIdentifierException} when `column` is not a plain SQL identifier.
+   *
+   * @example
+   * ```ts
+   * const byStatus = await Metrics.query(orderRepo.createQueryBuilder('order'))
+   *   .sumByYear('amount', 1)
+   *   .forYear(2024)
+   *   .labelColumn('status')
+   *   .trends();
+   * ```
+   */
   labelColumn(column: string): this {
     this.labelColumnName = this.qualify(column);
     return this;
@@ -215,6 +302,10 @@ export class MetricsBuilder<T extends ObjectLiteral> {
    * Fill gaps in a trend series with a default value (0), auto-discovering the
    * expected labels. An explicit label set can be supplied for categorical
    * series.
+   *
+   * @param missingValue - Value to insert for missing buckets (default `0`).
+   * @param missingLabels - Explicit label set for categorical series; defaults to auto-discovered labels.
+   * @returns This builder, for chaining.
    */
   fillMissingData(missingValue = 0, missingLabels: (string | number)[] = []): this {
     this.fill = true;
@@ -227,8 +318,13 @@ export class MetricsBuilder<T extends ObjectLiteral> {
    * Split the aggregate column into one data series per value, for a stacked /
    * multi-series chart. Each series counts the rows matching that value per
    * bucket (`aggregate(CASE WHEN column = value THEN 1 ELSE 0 END)`), and
-   * `total` carries the main aggregate per bucket. The result of trends()
-   * becomes a GroupedTrendsResult.
+   * `total` carries the main aggregate per bucket. {@link trends} then returns a
+   * {@link GroupedTrendsResult} instead of a {@link TrendsResult}.
+   *
+   * @param labels - The column values to split into series.
+   * @param aggregate - Aggregate function for each series (default {@link Aggregate.SUM}).
+   * @returns This builder, for chaining.
+   * @throws {@link InvalidAggregateException} when `aggregate` is not a supported function.
    */
   groupData(labels: (string | number)[], aggregate: Aggregate = Aggregate.SUM): this {
     assertAggregate(aggregate);
@@ -237,18 +333,42 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     return this;
   }
 
+  /**
+   * Aggregate by summing `column`.
+   * @param column - Numeric column to sum.
+   * @returns This builder, for chaining.
+   * @throws {@link InvalidIdentifierException} when `column` is not a plain SQL identifier.
+   */
   sum(column: string): this {
     return this.aggregate(Aggregate.SUM, column);
   }
 
+  /**
+   * Aggregate by averaging `column`.
+   * @param column - Numeric column to average.
+   * @returns This builder, for chaining.
+   * @throws {@link InvalidIdentifierException} when `column` is not a plain SQL identifier.
+   */
   average(column: string): this {
     return this.aggregate(Aggregate.AVERAGE, column);
   }
 
+  /**
+   * Aggregate by taking the maximum of `column`.
+   * @param column - Column to take the maximum of.
+   * @returns This builder, for chaining.
+   * @throws {@link InvalidIdentifierException} when `column` is not a plain SQL identifier.
+   */
   max(column: string): this {
     return this.aggregate(Aggregate.MAX, column);
   }
 
+  /**
+   * Aggregate by taking the minimum of `column`.
+   * @param column - Column to take the minimum of.
+   * @returns This builder, for chaining.
+   * @throws {@link InvalidIdentifierException} when `column` is not a plain SQL identifier.
+   */
   min(column: string): this {
     return this.aggregate(Aggregate.MIN, column);
   }
@@ -261,24 +381,53 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     return this;
   }
 
+  /**
+   * Bucket the series by day.
+   * @param count - Window size: `0` the whole period, `1` a single day, `>1` the last `count` days.
+   * @returns This builder, for chaining.
+   */
   byDay(count = 0): this {
     return this.by(Period.DAY, count);
   }
 
+  /**
+   * Bucket the series by week.
+   * @param count - Window size: `0` the whole period, `1` a single week, `>1` the last `count` weeks.
+   * @returns This builder, for chaining.
+   */
   byWeek(count = 0): this {
     return this.by(Period.WEEK, count);
   }
 
+  /**
+   * Bucket the series by month.
+   * @param count - Window size: `0` the whole period, `1` a single month, `>1` the last `count` months.
+   * @returns This builder, for chaining.
+   */
   byMonth(count = 0): this {
     return this.by(Period.MONTH, count);
   }
 
+  /**
+   * Bucket the series by year.
+   * @param count - Window size: `0` the whole period, `1` a single year, `>1` the last `count` years.
+   * @returns This builder, for chaining.
+   */
   byYear(count = 0): this {
     return this.by(Period.YEAR, count);
   }
 
   // --- Date ranges --------------------------------------------------------
 
+  /**
+   * Scope the query to an explicit, inclusive date range (overrides any period).
+   * Pair with a `groupBy*` method to choose the bucket granularity.
+   *
+   * @param start - Range start as an ISO `YYYY-MM-DD` date.
+   * @param end - Range end as an ISO `YYYY-MM-DD` date.
+   * @returns This builder, for chaining.
+   * @throws {@link InvalidDateFormatException} when a bound is not a valid `YYYY-MM-DD` date.
+   */
   between(start: string, end: string): this {
     assertDateFormat(start);
     assertDateFormat(end);
@@ -287,6 +436,12 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     return this;
   }
 
+  /**
+   * Scope the query from `date` up to today (an open-ended {@link between}).
+   * @param date - Range start as an ISO `YYYY-MM-DD` date.
+   * @returns This builder, for chaining.
+   * @throws {@link InvalidDateFormatException} when `date` is not a valid `YYYY-MM-DD` date.
+   */
   from(date: string): this {
     return this.between(date, today());
   }
@@ -296,39 +451,63 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     return this;
   }
 
+  /** Bucket a {@link between}/{@link from} range by day. @returns This builder, for chaining. */
   groupByDay(): this {
     return this.setGroupBy('day');
   }
 
+  /** Bucket a {@link between}/{@link from} range by week. @returns This builder, for chaining. */
   groupByWeek(): this {
     return this.setGroupBy('week');
   }
 
+  /** Bucket a {@link between}/{@link from} range by month. @returns This builder, for chaining. */
   groupByMonth(): this {
     return this.setGroupBy('month');
   }
 
+  /** Bucket a {@link between}/{@link from} range by year. @returns This builder, for chaining. */
   groupByYear(): this {
     return this.setGroupBy('year');
   }
 
   // --- Reference point pinning -------------------------------------------
 
+  /**
+   * Pin the reference day used by `byDay` window calculations (defaults to today).
+   * @param day - Day of month (1–31).
+   * @returns This builder, for chaining.
+   */
   forDay(day: number): this {
     this.day = day;
     return this;
   }
 
+  /**
+   * Pin the reference week used by `byWeek` window calculations (defaults to the current week).
+   * @param week - ISO-8601 week number.
+   * @returns This builder, for chaining.
+   */
   forWeek(week: number): this {
     this.week = week;
     return this;
   }
 
+  /**
+   * Pin the reference month used by `byMonth` window calculations (defaults to the current month).
+   * @param month - Month number (1–12).
+   * @returns This builder, for chaining.
+   */
   forMonth(month: number): this {
     this.month = month;
     return this;
   }
 
+  /**
+   * Pin the reference year used by `byYear` window calculations (defaults to the current year).
+   * @param year - Four-digit year.
+   * @returns This builder, for chaining.
+   */
   forYear(year: number): this {
     this.year = year;
     return this;
@@ -336,129 +515,193 @@ export class MetricsBuilder<T extends ObjectLiteral> {
 
   // --- Combined shorthands ------------------------------------------------
 
+  /** Shorthand for {@link MetricsBuilder.count | count} + {@link byDay}. */
   countByDay(column = 'id', count = 0): this {
     return this.count(column).byDay(count);
   }
 
+  /** Shorthand for {@link MetricsBuilder.count | count} + {@link byWeek}. */
   countByWeek(column = 'id', count = 0): this {
     return this.count(column).byWeek(count);
   }
 
+  /**
+   * Shorthand for {@link MetricsBuilder.count | count} + {@link byMonth}.
+   * @param column - Column to count (default `id`).
+   * @param count - Month window: `0` whole period, `1` single month, `>1` last `count` months.
+   * @returns This builder, for chaining.
+   *
+   * @example
+   * ```ts
+   * const series = await Metrics.query(orderRepo.createQueryBuilder('order'))
+   *   .countByMonth('id', 6)
+   *   .trends();
+   * ```
+   */
   countByMonth(column = 'id', count = 0): this {
     return this.count(column).byMonth(count);
   }
 
+  /** Shorthand for {@link MetricsBuilder.count | count} + {@link byYear}. */
   countByYear(column = 'id', count = 0): this {
     return this.count(column).byYear(count);
   }
 
+  /** Shorthand for {@link sum} + {@link byDay}. */
   sumByDay(column: string, count = 0): this {
     return this.sum(column).byDay(count);
   }
 
+  /** Shorthand for {@link sum} + {@link byWeek}. */
   sumByWeek(column: string, count = 0): this {
     return this.sum(column).byWeek(count);
   }
 
+  /** Shorthand for {@link sum} + {@link byMonth}. */
   sumByMonth(column: string, count = 0): this {
     return this.sum(column).byMonth(count);
   }
 
+  /**
+   * Shorthand for {@link sum} + {@link byYear}.
+   * @param column - Numeric column to sum.
+   * @param count - Year window: `0` whole period, `1` single year, `>1` last `count` years.
+   * @returns This builder, for chaining.
+   *
+   * @example
+   * ```ts
+   * const revenuePerYear = await Metrics.query(orderRepo.createQueryBuilder('order'))
+   *   .sumByYear('amount', 5)
+   *   .trends();
+   * ```
+   */
   sumByYear(column: string, count = 0): this {
     return this.sum(column).byYear(count);
   }
 
+  /** Shorthand for {@link average} + {@link byDay}. */
   averageByDay(column: string, count = 0): this {
     return this.average(column).byDay(count);
   }
 
+  /** Shorthand for {@link average} + {@link byWeek}. */
   averageByWeek(column: string, count = 0): this {
     return this.average(column).byWeek(count);
   }
 
+  /** Shorthand for {@link average} + {@link byMonth}. */
   averageByMonth(column: string, count = 0): this {
     return this.average(column).byMonth(count);
   }
 
+  /** Shorthand for {@link average} + {@link byYear}. */
   averageByYear(column: string, count = 0): this {
     return this.average(column).byYear(count);
   }
 
+  /** Shorthand for {@link max} + {@link byDay}. */
   maxByDay(column: string, count = 0): this {
     return this.max(column).byDay(count);
   }
 
+  /** Shorthand for {@link max} + {@link byWeek}. */
   maxByWeek(column: string, count = 0): this {
     return this.max(column).byWeek(count);
   }
 
+  /** Shorthand for {@link max} + {@link byMonth}. */
   maxByMonth(column: string, count = 0): this {
     return this.max(column).byMonth(count);
   }
 
+  /** Shorthand for {@link max} + {@link byYear}. */
   maxByYear(column: string, count = 0): this {
     return this.max(column).byYear(count);
   }
 
+  /** Shorthand for {@link min} + {@link byDay}. */
   minByDay(column: string, count = 0): this {
     return this.min(column).byDay(count);
   }
 
+  /** Shorthand for {@link min} + {@link byWeek}. */
   minByWeek(column: string, count = 0): this {
     return this.min(column).byWeek(count);
   }
 
+  /** Shorthand for {@link min} + {@link byMonth}. */
   minByMonth(column: string, count = 0): this {
     return this.min(column).byMonth(count);
   }
 
+  /** Shorthand for {@link min} + {@link byYear}. */
   minByYear(column: string, count = 0): this {
     return this.min(column).byYear(count);
   }
 
+  /** Shorthand for {@link count} + {@link between}. */
   countBetween([start, end]: [string, string], column = 'id'): this {
     return this.count(column).between(start, end);
   }
 
+  /** Shorthand for {@link sum} + {@link between}. */
   sumBetween([start, end]: [string, string], column: string): this {
     return this.sum(column).between(start, end);
   }
 
+  /** Shorthand for {@link average} + {@link between}. */
   averageBetween([start, end]: [string, string], column: string): this {
     return this.average(column).between(start, end);
   }
 
+  /** Shorthand for {@link max} + {@link between}. */
   maxBetween([start, end]: [string, string], column: string): this {
     return this.max(column).between(start, end);
   }
 
+  /** Shorthand for {@link min} + {@link between}. */
   minBetween([start, end]: [string, string], column: string): this {
     return this.min(column).between(start, end);
   }
 
+  /** Shorthand for {@link count} + {@link from}. */
   countFrom(date: string, column = 'id'): this {
     return this.count(column).from(date);
   }
 
+  /** Shorthand for {@link sum} + {@link from}. */
   sumFrom(date: string, column: string): this {
     return this.sum(column).from(date);
   }
 
+  /** Shorthand for {@link average} + {@link from}. */
   averageFrom(date: string, column: string): this {
     return this.average(column).from(date);
   }
 
+  /** Shorthand for {@link max} + {@link from}. */
   maxFrom(date: string, column: string): this {
     return this.max(column).from(date);
   }
 
+  /** Shorthand for {@link min} + {@link from}. */
   minFrom(date: string, column: string): this {
     return this.min(column).from(date);
   }
 
   // --- Terminals ----------------------------------------------------------
 
-  /** Generate a single aggregate value. Returns 0 when there is no data. */
+  /**
+   * Execute the query and return a single aggregate value.
+   * @returns The aggregate value, or `0` when no rows match.
+   *
+   * @example
+   * ```ts
+   * const total = await Metrics.query(orderRepo.createQueryBuilder('order'))
+   *   .sum('amount')
+   *   .metrics();
+   * ```
+   */
   async metrics(): Promise<number> {
     const params: Record<string, unknown> = {};
     const where = this.buildFilters(params);
@@ -478,6 +721,13 @@ export class MetricsBuilder<T extends ObjectLiteral> {
   /**
    * Generate the current metric plus its variation against the period
    * `previousCount` units ago.
+   *
+   * @param previousCount - How many periods back the comparison window sits (must be `> 0`).
+   * @param previousPeriod - The period unit to step back by; one of {@link Period}'s day/week/month/year.
+   * @param inPercent - When `true`, express the variation value as a percentage string.
+   * @returns The current count plus a typed (`increase`/`decrease`/`none`) variation.
+   * @throws {@link InvalidPeriodException} when `previousPeriod` is not a day/week/month/year period.
+   * @throws {@link InvalidVariationsCountException} when `previousCount` is not greater than `0`.
    */
   async metricsWithVariations(
     previousCount: number,
@@ -513,7 +763,21 @@ export class MetricsBuilder<T extends ObjectLiteral> {
     return { count, variation: { type, value } };
   }
 
-  /** Generate a chart-ready time series. Empty when there is no data. */
+  /**
+   * Execute the query and return a chart-ready time series. Returns a
+   * {@link GroupedTrendsResult} when {@link groupData} was used, otherwise a
+   * {@link TrendsResult}; both are empty when no rows match.
+   *
+   * @param inPercent - When `true`, convert each data point to its percentage of the series total.
+   * @returns Parallel `labels`/`data` arrays ready to feed a chart.
+   *
+   * @example
+   * ```ts
+   * const { labels, data } = await Metrics.query(orderRepo.createQueryBuilder('order'))
+   *   .countByMonth()
+   *   .trends();
+   * ```
+   */
   async trends(inPercent = false): Promise<TrendsResult | GroupedTrendsResult> {
     if (this.groupedLabels.length > 0) {
       return this.groupedTrends(inPercent);
