@@ -39,6 +39,7 @@ const WhereInputSchema: z.ZodType<import('./where').WhereInput> = z.record(
   WhereConditionSchema,
 );
 
+/** Zod schema validating {@link MetricsOptions} at a builder entry point. */
 export const MetricsOptionsSchema = z.object({
   locale: LocaleSchema.optional(),
   timezone: TimezoneSchema.optional(),
@@ -50,6 +51,7 @@ export const MetricsOptionsSchema = z.object({
     .optional(),
 });
 
+/** Zod schema validating {@link ExecutorSpec} passed to `queryExecutor`. */
 export const ExecutorSpecSchema = z.object({
   table: IdentifierSchema,
   dateColumn: z.string().min(1).optional(),
@@ -57,15 +59,24 @@ export const ExecutorSpecSchema = z.object({
   from: z.string().min(1).optional(),
 });
 
+/** Zod schema validating {@link MetricsModuleOptions} for the NestJS module. */
 export const MetricsModuleOptionsSchema = z.object({
   locale: LocaleSchema.optional(),
   timezone: TimezoneSchema.optional(),
 });
 
+/** Per-call options for a metrics query: BCP-47 `locale`, IANA `timezone`, and opt-in `cache`. */
 export type MetricsOptions = z.infer<typeof MetricsOptionsSchema>;
+/**
+ * Declares the source the executor-mode builder reads from: a `table` plus
+ * optional `dateColumn`/`where`, with a raw `from` fragment as the escape hatch
+ * for joins/subqueries the structured shape can't express.
+ */
 export type ExecutorSpec = z.infer<typeof ExecutorSpecSchema>;
+/** Module-wide defaults for `MetricsModule.forRoot`: a BCP-47 `locale` and IANA `timezone`. */
 export type MetricsModuleOptions = z.infer<typeof MetricsModuleOptionsSchema>;
 
+/** Thrown when options fail schema validation; carries the underlying Zod `issues`. */
 export class ValidationError extends Error {
   public readonly issues: z.ZodIssue[];
 
@@ -82,6 +93,12 @@ function formatIssues(issues: z.ZodIssue[]): string {
     .join('\n');
 }
 
+/**
+ * Validate and narrow an unknown value to {@link MetricsOptions}.
+ * @param input - The value to validate.
+ * @returns The parsed options.
+ * @throws {@link ValidationError} when `input` does not match the schema.
+ */
 export function validateMetricsOptions(input: unknown): MetricsOptions {
   const result = MetricsOptionsSchema.safeParse(input);
   if (!result.success) {
@@ -93,6 +110,12 @@ export function validateMetricsOptions(input: unknown): MetricsOptions {
   return result.data;
 }
 
+/**
+ * Validate and narrow an unknown value to {@link ExecutorSpec}.
+ * @param input - The value to validate.
+ * @returns The parsed spec.
+ * @throws {@link ValidationError} when `input` does not match the schema.
+ */
 export function validateExecutorSpec(input: unknown): ExecutorSpec {
   const result = ExecutorSpecSchema.safeParse(input);
   if (!result.success) {
@@ -104,6 +127,12 @@ export function validateExecutorSpec(input: unknown): ExecutorSpec {
   return result.data;
 }
 
+/**
+ * Validate and narrow an unknown value to {@link MetricsModuleOptions}.
+ * @param input - The value to validate.
+ * @returns The parsed module options.
+ * @throws {@link ValidationError} when `input` does not match the schema.
+ */
 export function validateMetricsModuleOptions(input: unknown): MetricsModuleOptions {
   const result = MetricsModuleOptionsSchema.safeParse(input);
   if (!result.success) {

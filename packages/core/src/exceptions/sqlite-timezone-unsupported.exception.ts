@@ -1,3 +1,4 @@
+/** Thrown when timezone-aware bucketing is requested on SQLite in executor mode (UTC-only there). */
 export class SqliteTimezoneUnsupportedException extends Error {
   constructor(timezone: string) {
     super(

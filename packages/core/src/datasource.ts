@@ -14,7 +14,9 @@ export type SupportedDialect = 'postgres' | 'mysql' | 'sqlite';
  * the dialect and a function that runs the emitted SQL through its own client.
  */
 export interface DataSource {
+  /** Which SQL dialect the emitted queries should target. */
   dialect: SupportedDialect;
+  /** Runs the emitted parameterized SQL through the adapter's own client. */
   execute: SqlExecutor;
 }
 

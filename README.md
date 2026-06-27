@@ -68,6 +68,20 @@ See each package's README for the full API. Intentional differences from the
 original Laravel library are in [DIVERGENCES.md](./DIVERGENCES.md); architecture in
 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
+## API reference
+
+Every public API — the fluent `MetricsBuilder`, the repository helpers, the
+executor types, the NestJS module and the Prisma/Drizzle adapters — ships JSDoc
+with usage examples, so your editor surfaces it inline. Generate the full HTML
+reference with [TypeDoc](https://typedoc.org):
+
+```bash
+docker compose run --rm dev npm run docs:api   # writes docs/api/
+```
+
+Then open [`docs/api/index.html`](./docs/api/index.html). The generated site is
+git-ignored; publish it to GitHub Pages (or your host of choice) from CI.
+
 ## Development
 
 npm-workspaces monorepo. Everything runs in Docker:

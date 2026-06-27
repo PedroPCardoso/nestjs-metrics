@@ -15,6 +15,7 @@
     "test:watch": "vitest",
     "lint": "eslint \"packages/*/src/**/*.ts\" \"test/**/*.ts\"",
     "smoke": "bash scripts/consumer-smoke.sh",
+    "docs:api": "typedoc",
     "release": "changeset publish"
   },
   "devDependencies": {
@@ -35,6 +36,7 @@
     "pg": "^8",
     "reflect-metadata": "^0.2",
     "tsup": "^8",
+    "typedoc": "^0.28",
     "typeorm": "^0.3",
     "typescript": "^5",
     "vitest": "^2"

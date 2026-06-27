@@ -19,6 +19,22 @@ export class MetricsService {
     this.defaults = { ...root, ...feature };
   }
 
+  /**
+   * Open a {@link MetricsBuilder} over a TypeORM query builder, applying the
+   * resolved locale/timezone defaults (call-site options take precedence).
+   *
+   * @param qb - The TypeORM query builder to read from.
+   * @param options - Per-call locale/timezone overrides.
+   * @returns A builder ready for chaining.
+   *
+   * @example
+   * ```ts
+   * const series = await metricsService
+   *   .query(orderRepo.createQueryBuilder('order'))
+   *   .countByMonth('id', 3)
+   *   .trends();
+   * ```
+   */
   query<T extends ObjectLiteral>(
     qb: SelectQueryBuilder<T>,
     options: MetricsOptions = {},

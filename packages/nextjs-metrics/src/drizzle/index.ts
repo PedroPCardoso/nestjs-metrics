@@ -29,6 +29,20 @@ export interface DrizzleMetricsSpec extends Omit<ExecutorSpec, 'table' | 'dateCo
  * Build a metrics query over a Drizzle db. Pass the typed table/column objects
  * for compile-time safety and dialect auto-detection, or plain strings plus an
  * explicit `dialect`.
+ *
+ * @param db - A Drizzle database exposing the underlying driver as `$client`.
+ * @param spec - Source table/columns; the dialect is auto-detected from a typed table, else required.
+ * @param options - Locale, timezone and cache options for the query.
+ * @returns A metrics builder ready for chaining.
+ * @throws When `spec.table` is a string and no `dialect` is supplied (it cannot be auto-detected).
+ *
+ * @example
+ * ```ts
+ * // Typed table → dialect auto-detected.
+ * const series = await drizzleMetrics(db, { table: orders, dateColumn: orders.createdAt })
+ *   .countByMonth('id', 6)
+ *   .trends();
+ * ```
  */
 export function drizzleMetrics(
   db: DrizzleClientLike,

@@ -1,3 +1,4 @@
+/** Thrown when a column/table name is not a plain SQL identifier (the injection guard). */
 export class InvalidIdentifierException extends Error {
   constructor(identifier: string) {
     super(
