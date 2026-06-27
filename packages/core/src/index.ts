@@ -19,6 +19,16 @@ export type {
   VariationResult,
   MetricsOptions,
 } from './types';
+export type { MetricsModuleOptions } from './options.schema';
+export {
+  MetricsOptionsSchema,
+  ExecutorSpecSchema,
+  MetricsModuleOptionsSchema,
+  ValidationError,
+  validateMetricsOptions,
+  validateExecutorSpec,
+  validateMetricsModuleOptions,
+} from './options.schema';
 export { InvalidPeriodException } from './exceptions/invalid-period.exception';
 export { InvalidVariationsCountException } from './exceptions/invalid-variations-count.exception';
 export { InvalidAggregateException } from './exceptions/invalid-aggregate.exception';

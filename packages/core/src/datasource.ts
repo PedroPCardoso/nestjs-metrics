@@ -1,4 +1,4 @@
-import { WhereInput } from './where';
+import type { ExecutorSpec as ZodExecutorSpec } from './options.schema';
 
 /** One raw result row, keyed by select alias. */
 export type Row = Record<string, unknown>;
@@ -23,11 +23,4 @@ export interface DataSource {
  * date/value columns, with an optional raw `from` fragment as the escape hatch
  * for joins/subqueries the structured shape can't express.
  */
-export interface ExecutorSpec {
-  table: string;
-  dateColumn?: string;
-  /** Structured filters (equality / IN / range) ANDed onto the query. */
-  where?: WhereInput;
-  /** Raw SQL FROM fragment (trusted developer surface) — replaces `table`. */
-  from?: string;
-}
+export type ExecutorSpec = ZodExecutorSpec;
