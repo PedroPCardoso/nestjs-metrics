@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { MetricsError } from './exceptions/metrics.error';
 
 const BCP47 = /^[a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2,3})?$/;
 
@@ -66,11 +67,11 @@ export type MetricsOptions = z.infer<typeof MetricsOptionsSchema>;
 export type ExecutorSpec = z.infer<typeof ExecutorSpecSchema>;
 export type MetricsModuleOptions = z.infer<typeof MetricsModuleOptionsSchema>;
 
-export class ValidationError extends Error {
+export class ValidationError extends MetricsError {
   public readonly issues: z.ZodIssue[];
 
   constructor(message: string, issues: z.ZodIssue[]) {
-    super(message);
+    super(message, 'VALIDATION_ERROR', { issues });
     this.name = 'MetricsValidationError';
     this.issues = issues;
   }

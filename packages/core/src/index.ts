@@ -31,6 +31,10 @@ export {
 } from './options.schema';
 export type { CacheOptions, CacheStore, CacheStats } from './cache/types';
 export { MemoryCacheStore } from './cache/memory-cache.store';
+export { MetricsError } from './exceptions/metrics.error';
+export type { MetricsErrorContext } from './exceptions/metrics.error';
+export { QueryExecutionError } from './exceptions/query-execution.exception';
+export { ConfigurationError } from './exceptions/configuration.exception';
 export { InvalidPeriodException } from './exceptions/invalid-period.exception';
 export { InvalidVariationsCountException } from './exceptions/invalid-variations-count.exception';
 export { InvalidAggregateException } from './exceptions/invalid-aggregate.exception';
