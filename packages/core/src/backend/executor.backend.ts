@@ -1,6 +1,8 @@
 import { DataSource, Row } from '../datasource';
 import { dialectFor } from '../dialects/dialect.factory';
 import { SqlDialect } from '../dialects/sql-dialect.interface';
+import { MetricsError } from '../exceptions/metrics.error';
+import { QueryExecutionError } from '../exceptions/query-execution.exception';
 import { SqliteTimezoneUnsupportedException } from '../exceptions/sqlite-timezone-unsupported.exception';
 import { normalizeData, normalizeLabel } from '../formatting/normalize';
 import { QueryBackend } from './query-backend.interface';
@@ -35,7 +37,21 @@ export class ExecutorBackend implements QueryBackend {
       throw new SqliteTimezoneUnsupportedException(plan.tz);
     }
     const { sql, params } = this.assemble(plan);
-    const rows = await this.dataSource.execute(sql, params);
+    let rows: Row[];
+    try {
+      rows = await this.dataSource.execute(sql, params);
+    } catch (err) {
+      // Already one of ours (e.g. a missing bound parameter) — let it through.
+      if (err instanceof MetricsError) {
+        throw err;
+      }
+      throw new QueryExecutionError(err, {
+        query: sql,
+        params,
+        dialect: this.dataSource.dialect,
+        operation: 'execute',
+      });
+    }
     return rows.map((row) => this.normalizeRow(row));
   }
 
@@ -63,7 +79,11 @@ export class ExecutorBackend implements QueryBackend {
     const params: unknown[] = [];
     const bound = sql.replace(NAMED_PARAM, (_match, name: string) => {
       if (!(name in named)) {
-        throw new Error(`nestjs-metrics: missing bound parameter ":${name}"`);
+        throw new MetricsError(
+          `nestjs-metrics: missing bound parameter ":${name}"`,
+          'MISSING_BOUND_PARAMETER',
+          { params: named },
+        );
       }
       params.push(named[name]);
       return this.dialect.placeholder(params.length);

@@ -1,5 +1,6 @@
 import type { Column, Table } from 'drizzle-orm';
 import {
+  ConfigurationError,
   MetricsBuilder,
   type ExecutorSpec,
   type MetricsOptions,
@@ -87,8 +88,10 @@ function resolveDialect(spec: DrizzleMetricsSpec): SupportedDialect {
       return detected;
     }
   }
-  throw new Error(
-    'drizzleMetrics: pass `dialect` explicitly when `table` is a string (it cannot be auto-detected).',
+  throw new ConfigurationError(
+    'drizzleMetrics: the dialect could not be auto-detected.',
+    "Pass `dialect` explicitly: 'sqlite' | 'postgres' | 'mysql'.",
+    { operation: 'resolveDialect' },
   );
 }
 
