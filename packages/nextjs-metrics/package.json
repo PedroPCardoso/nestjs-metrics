@@ -1,6 +1,6 @@
 {
   "name": "nextjs-metrics",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Metrics & trends for Next.js / any Node runtime, over Prisma or Drizzle. (Built on nestjs-metrics-core.)",
   "keywords": [
     "nextjs",
@@ -53,7 +53,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "nestjs-metrics-core": "^0.1.1"
+    "nestjs-metrics-core": "^0.2.0"
   },
   "peerDependencies": {
     "@prisma/client": "*",
