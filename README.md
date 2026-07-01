@@ -86,8 +86,8 @@ reference with [TypeDoc](https://typedoc.org):
 docker compose run --rm dev npm run docs:api   # writes docs/api/
 ```
 
-Then open [`docs/api/index.html`](./docs/api/index.html). The generated site is
-git-ignored; publish it to GitHub Pages (or your host of choice) from CI.
+Full API reference is also available on the
+[NestJ ReadMe](https://nestjs-metrics.readme.io/docs/getting-started).
 
 ## Development
 
