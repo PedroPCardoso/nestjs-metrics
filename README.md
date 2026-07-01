@@ -68,6 +68,13 @@ See each package's README for the full API. Intentional differences from the
 original Laravel library are in [DIVERGENCES.md](./DIVERGENCES.md); architecture in
 [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
 
+## NestJS guide
+
+A comprehensive guide covering all features, queries, filters and usage patterns
+for the NestJS module is available at
+[`docs/GUIA-NESTJS.md`](./docs/GUIA-NESTJS.md) (Portuguese) and on the
+[NestJ ReadMe](https://nestj.readme.io/docs/getting-started) (English).
+
 ## API reference
 
 Every public API — the fluent `MetricsBuilder`, the repository helpers, the
