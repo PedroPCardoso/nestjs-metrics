@@ -1,5 +1,11 @@
 # nestjs-metrics
 
+## 0.3.1
+
+### Patch Changes
+
+- 54f34d9: docs: add comprehensive NestJS usage guide (GUIA-NESTJS.md) and link to NestJ ReadMe
+
 ## 0.3.0
 
 ### Minor Changes
