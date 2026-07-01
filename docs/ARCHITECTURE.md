@@ -1,185 +1,185 @@
-# nestjs-metrics — Arquitetura, Implementação e Entrega
+# nestjs-metrics — Architecture, Implementation & Delivery
 
-> Porta do pacote [`eliseekn/laravel-metrics`](https://github.com/eliseekn/laravel-metrics) para o ecossistema **NestJS + TypeScript**, entregue como **biblioteca npm** com um **módulo NestJS** plugável.
+> Port of [`eliseekn/laravel-metrics`](https://github.com/eliseekn/laravel-metrics) to the **NestJS + TypeScript** ecosystem, shipped as an **npm library** with a **pluggable NestJS module**.
 
 ---
 
-## 0. Decisões da sessão de revisão (grilling)
+## 0. Review session (grilling) decisions
 
-> **Estas decisões têm precedência sobre o restante do documento onde houver conflito.** Resultam de uma sessão de stress-test da arquitetura.
+> **These decisions take precedence over the rest of the document wherever there is conflict.** They result from an architecture stress-test session.
 
-| # | Decisão | Racional resumido |
+| # | Decision | Summary rationale |
 |---|---|---|
-| 1 | **Cortar `QueryAdapter` da v0.1.** Acoplar o core direto ao `SelectQueryBuilder` do TypeORM. | Abstração especulativa com 1 só implementação; extrair só quando o 2º ORM existir. A `SqlDialect` strategy permanece (3 dialetos coexistem desde o dia 1). |
-| 2 | **Validar identificadores:** `assertSafeIdentifier()` (allowlist regex) + escape do driver em `column`/`table`/`dateColumn`/`labelColumn`. | Lib pública; parâmetros nomeados não protegem identificadores. Fecha o vetor de SQL injection herdado do original. |
-| 3 | **Porta idiomática, paridade como baseline (não dogma).** Quirks defensáveis são corrigidos e registrados em `DIVERGENCES.md`. DoD = "paridade de saída **exceto divergências documentadas**". | Permite corrigir bugs latentes do original (semana, heurística de data, `groupData` por ordem). |
-| 4 | **Semana = ISO-8601 uniforme** via SQL por dialeto, com teste cross-dialeto. | Original é inconsistente (`Carbon::week` no PHP vs `%W`/`WEEK()`/`EXTRACT` no SQL). ISO é o padrão de analytics. |
-| 5 | **Manter as 3 formas de uso** (`Metrics.query`, `MetricsService`+módulo, `metricsFor(repo)`) como fachadas finas sobre **um único core**; testes de fumaça por fachada. | Pedido explícito do usuário. Core único evita divergência de comportamento. |
-| 6 | **Testes multi-dialeto reais (Testcontainers Postgres+MySQL) bloqueiam todo PR**, além de SQLite + snapshots de SQL. | Garantia dura de execução real desde a v0.1. |
-| 7 | **Distribuição CJS-first** (`"type": "commonjs"`) + type declarations. Dual/ESM fica para uma major futura. | Ecossistema Nest/TypeORM é CJS; evita dual-package hazard nos enums/exceções. |
-| 8 | **Atalho de entidade = `metricsFor(repo)`** (canônico) + extensão opcional de `Repository`. **Abandonar** o Active Record literal `Entity.metrics()`. | TypeORM é Data Mapper; clone sintático custaria amarrar a connection global e Active Record. Paridade é semântica, não sintática. |
-| 9 | **Bucketing timezone-aware desde a v0.1**: opção `timezone` com conversão de fuso no SQL por dialeto. | Agrupamento por data é silenciosamente dependente do fuso da conexão; requisito do usuário. |
-| 10 | **SQLite faz bucketing TZ-aware em JS (Luxon, DST-correto)**; Postgres/MySQL no SQL. Setup do contêiner MySQL **carrega as timezone tables**. | SQLite não tem TZ nativo; o caminho JS vira o oráculo DST-correto que valida o SQL dos outros dois. `CONVERT_TZ` sem tabelas retorna NULL silenciosamente. |
-| 11 | **Config global via `forRoot({ locale?, timezone? })`** + **`forFeature({ locale?, timezone? })`** como override por escopo. Precedência: **opção da chamada > forRoot > default da lib** (`en` / `UTC`). | Decisões 9/10 criaram 2 defaults globais legítimos; o módulo deixa de ser cerimônia. |
+| 1 | **Cut `QueryAdapter` from v0.1.** Couple the core directly to TypeORM's `SelectQueryBuilder`. | Speculative abstraction with 1 implementation; extract only when the 2nd ORM exists. The `SqlDialect` strategy remains (3 dialects coexist from day 1). |
+| 2 | **Validate identifiers:** `assertSafeIdentifier()` (allowlist regex) + driver escape in `column`/`table`/`dateColumn`/`labelColumn`. | Public library; named parameters do not protect identifiers. Closes the SQL injection vector inherited from the original. |
+| 3 | **Idiomatic port, parity as baseline (not dogma).** Defensible quirks are fixed and recorded in `DIVERGENCES.md`. DoD = "output parity **except documented divergences**". | Allows fixing latent bugs in the original (week, date heuristic, `groupData` ordering). |
+| 4 | **Week = uniform ISO-8601** via SQL per dialect, with cross-dialect test. | Original is inconsistent (`Carbon::week` in PHP vs `%W`/`WEEK()`/`EXTRACT` in SQL). ISO is the analytics standard. |
+| 5 | **Keep all 3 usage forms** (`Metrics.query`, `MetricsService`+module, `metricsFor(repo)`) as thin facades over **a single core**; smoke tests per facade. | Explicit user request. Single core avoids behavior divergence. |
+| 6 | **Real multi-dialect tests (Testcontainers Postgres+MySQL) block every PR**, plus SQLite + SQL snapshots. | Hard guarantee of real execution from v0.1. |
+| 7 | **CJS-first distribution** (`"type": "commonjs"`) + type declarations. Dual/ESM for a future major. | Nest/TypeORM ecosystem is CJS; avoids dual-package hazard in enums/exceptions. |
+| 8 | **Entity shortcut = `metricsFor(repo)`** (canonical) + optional `Repository` extension. **Drop** the literal Active Record `Entity.metrics()`. | TypeORM is Data Mapper; syntactic clone would require tying to a global connection and Active Record. Parity is semantic, not syntactic. |
+| 9 | **Timezone-aware bucketing from v0.1**: `timezone` option with timezone conversion in SQL per dialect. | Date grouping is silently dependent on the connection's timezone; user requirement. |
+| 10 | **SQLite does TZ-aware bucketing in JS (Luxon, DST-correct)**; Postgres/MySQL in SQL. MySQL container setup **loads timezone tables**. | SQLite has no native TZ; the JS path becomes the DST-correct oracle that validates the SQL of the other two. `CONVERT_TZ` without tables silently returns NULL. |
+| 11 | **Global config via `forRoot({ locale?, timezone? })`** + **`forFeature({ locale?, timezone? })`** as per-scope override. Precedence: **call option > forRoot > lib default** (`en` / `UTC`). | Decisions 9/10 created 2 legitimate global defaults; the module is no longer ceremony. |
 
 ---
 
-## 1. Objetivo
+## 1. Objective
 
-Recriar, em NestJS/TypeScript, uma biblioteca que gera **métricas** (valores agregados) e **trends** (séries temporais para gráficos) a partir de entidades de banco de dados, através de uma **API fluente** equivalente à do `laravel-metrics`.
+Recreate, in NestJS/TypeScript, a library that generates **metrics** (aggregate values) and **trends** (time series for charts) from database entities, through a **fluent API** equivalent to `laravel-metrics`.
 
-O resultado deve:
+The result must:
 
-- Ser publicável no **npm** e importável como **módulo NestJS** (`MetricsModule`) e/ou classe standalone (`Metrics`).
-- Suportar **PostgreSQL, MySQL/MariaDB e SQLite** (mesmos dialetos do original).
-- Usar **TypeORM** como camada de acesso a dados (equivalente do Eloquent/Query Builder).
-- Manter **paridade funcional e de formato de saída** com o original, validada por testes.
+- Be publishable on **npm** and importable as a **NestJS module** (`MetricsModule`) and/or standalone class (`Metrics`).
+- Support **PostgreSQL, MySQL/MariaDB and SQLite** (same dialects as the original).
+- Use **TypeORM** as the data access layer (equivalent of Eloquent/Query Builder).
+- Maintain **functional and output format parity** with the original, validated by tests.
 
-### Não-objetivos (v1)
+### Non-goals (v1)
 
-- Não é um app/serviço HTTP — é uma lib (um app demo é roadmap, ver §13).
-- Não fornece UI de gráficos; entrega apenas o **payload** (`{ labels, data }`) pronto para Chart.js/ApexCharts/etc.
-- ~~Não suporta Prisma/Knex/Drizzle na v1.~~ **(Decisão 1, atualizada):** a abstração foi **extraída** quando o 2º backend surgiu (modo executor, ver §6.4). O core agora é dual-mode — o caminho TypeORM permanece intacto; um `ExecutorBackend` agnóstico de ORM emite SQL cru para qualquer `DataSource` `(sql, params) => rows`. O engine vive em `nestjs-metrics-core`; `nestjs-metrics` (NestJS) e `nextjs-metrics` (Prisma/Drizzle) dependem dele (PRD #16).
+- Not an HTTP app/service — it's a lib (a demo app is in the roadmap, see §13).
+- Does not provide a chart UI; delivers only the **payload** (`{ labels, data }`) ready for Chart.js/ApexCharts/etc.
+- ~~Does not support Prisma/Knex/Drizzle in v1.~~ **(Decision 1, updated):** the abstraction was **extracted** when the 2nd backend emerged (executor mode, see §6.4). The core is now dual-mode — the TypeORM path remains intact; an ORM-agnostic `ExecutorBackend` emits raw SQL to any `DataSource` `(sql, params) => rows`. The engine lives in `nestjs-metrics-core`; `nestjs-metrics` (NestJS) and `nextjs-metrics` (Prisma/Drizzle) depend on it (PRD #16).
 
 ---
 
-## 2. Análise do projeto original
+## 2. Analysis of the original project
 
-O `laravel-metrics` é uma **biblioteca** (não um app). Núcleo em ~1.200 linhas:
+`laravel-metrics` is a **library** (not an app). Core ~1,200 lines:
 
-| Arquivo | Responsabilidade |
+| File | Responsibility |
 |---|---|
-| `src/LaravelMetrics.php` (874 ln) | Builder fluente: aggregates, períodos, `metrics()`, `trends()`, `metricsWithVariations()`, grouped data, fill missing |
-| `src/DatesFunctions.php` (252 ln) | **SQL por dialeto** (extração de dia/semana/mês/ano), cálculo de janelas de período, geração de labels de datas, tradução por locale (Carbon) |
+| `src/LaravelMetrics.php` (874 ln) | Fluent builder: aggregates, periods, `metrics()`, `trends()`, `metricsWithVariations()`, grouped data, fill missing |
+| `src/DatesFunctions.php` (252 ln) | **SQL per dialect** (day/week/month/year extraction), period window calculation, date label generation, locale translation (Carbon) |
 | `src/Enums/Aggregate.php` | `count`/`avg`/`sum`/`max`/`min` |
 | `src/Enums/Period.php` | `today`/`day`/`week`/`month`/`year` |
-| `src/HasMetrics.php` | Trait `Order::metrics()` (atalho a partir do model) |
-| `src/LaravelMetricsFacade.php` | Facade Laravel |
-| `src/Exceptions/*` | 4 exceções de validação (período, aggregate, formato de data, count de variação) |
+| `src/HasMetrics.php` | Trait `Order::metrics()` (shortcut from the model) |
+| `src/LaravelMetricsFacade.php` | Laravel Facade |
+| `src/Exceptions/*` | 4 validation exceptions (period, aggregate, date format, variation count) |
 
-### 2.1 Superfície da API (a replicar)
+### 2.1 API surface (to replicate)
 
-**Entrada do builder**
-- `query(builder)` — a partir de um Query/Eloquent builder.
-- `Order::metrics()` — atalho via trait.
+**Builder entry points**
+- `query(builder)` — from a Query/Eloquent builder.
+- `Order::metrics()` — shortcut via trait.
 - `table(name)`, `dateColumn(col)` (default `created_at`), `labelColumn(col)`.
 
 **Aggregates** — `count(col='id')`, `average(col)`, `sum(col)`, `max(col)`, `min(col)`.
 
-**Períodos**
-- `byDay(n)`, `byWeek(n)`, `byMonth(n)`, `byYear(n)` — `n=0` → período atual; `n=1` → ponto único; `n>1` → janela.
+**Periods**
+- `byDay(n)`, `byWeek(n)`, `byMonth(n)`, `byYear(n)` — `n=0` → current period; `n=1` → single point; `n>1` → window.
 - `between(start, end, isoFormat)`, `from(date, isoFormat)`.
-- `forDay/forWeek/forMonth/forYear(value)` — fixa o ponto de referência.
-- `groupByDay/Week/Month/Year()` — granularidade (apenas com `between`).
+- `forDay/forWeek/forMonth/forYear(value)` — fixes the reference point.
+- `groupByDay/Week/Month/Year()` — granularity (only with `between`).
 
-**Combinações** — `countByMonth`, `sumByYear`, `averageBetween`, `maxFrom`, … (produto cartesiano aggregate × período).
+**Combinations** — `countByMonth`, `sumByYear`, `averageBetween`, `maxFrom`, … (cartesian product aggregate × period).
 
-**Saídas**
-- `metrics(): number` — valor agregado único.
-- `trends(inPercent=false): { labels: string[], data: number[] }` — série para gráfico.
+**Outputs**
+- `metrics(): number` — single aggregate value.
+- `trends(inPercent=false): { labels: string[], data: number[] }` — chart-ready series.
 - `metricsWithVariations(prevCount, prevPeriod, inPercent): { count, variation: { type, value } }`.
 
-**Modificadores de saída**
-- `fillMissingData(value=0, labels=[])` — preenche buracos da série (descobre labels automaticamente).
-- `groupData(labels[], aggregate)` — quebra uma coluna categórica em múltiplos datasets (`{ labels, data: { total, <label>: [] } }`).
-- `trends(true)` — converte série em percentuais.
+**Output modifiers**
+- `fillMissingData(value=0, labels=[])` — fills gaps in the series (auto-discovers labels).
+- `groupData(labels[], aggregate)` — breaks a categorical column into multiple datasets (`{ labels, data: { total, <label>: [] } }`).
+- `trends(true)` — converts series to percentages.
 
-**Locale** — nomes de dias/meses traduzidos via `app.locale` (Carbon). Semana fica `Week N`.
+**Locale** — day/month names translated via `app.locale` (Carbon). Week becomes `Week N`.
 
-### 2.2 O ponto sensível: SQL por dialeto
+### 2.2 The sensitive point: SQL per dialect
 
-`formatPeriod()` e `formatDateColumn()` emitem SQL **diferente por driver**:
+`formatPeriod()` and `formatDateColumn()` emit **different SQL per driver**:
 
-| Conceito | MySQL | PostgreSQL | SQLite |
+| Concept | MySQL | PostgreSQL | SQLite |
 |---|---|---|---|
-| dia | `day(col)` | `EXTRACT(DAY FROM col)` | `CAST(strftime('%d', col) AS INTEGER)` |
-| semana | `week(col)` | `EXTRACT(WEEK FROM col)` | `CAST(strftime('%W', col) AS INTEGER)` |
-| mês | `month(col)` | `EXTRACT(MONTH FROM col)` | `CAST(strftime('%m', col) AS INTEGER)` |
-| ano | `year(col)` | `EXTRACT(YEAR FROM col)` | `CAST(strftime('%Y', col) AS INTEGER)` |
-| data | `date(col)` | `TO_CHAR(col,'YYYY-MM-DD')` | `strftime('%Y-%m-%d', col)` |
+| day | `day(col)` | `EXTRACT(DAY FROM col)` | `CAST(strftime('%d', col) AS INTEGER)` |
+| week | `week(col)` | `EXTRACT(WEEK FROM col)` | `CAST(strftime('%W', col) AS INTEGER)` |
+| month | `month(col)` | `EXTRACT(MONTH FROM col)` | `CAST(strftime('%m', col) AS INTEGER)` |
+| year | `year(col)` | `EXTRACT(YEAR FROM col)` | `CAST(strftime('%Y', col) AS INTEGER)` |
+| date | `date(col)` | `TO_CHAR(col,'YYYY-MM-DD')` | `strftime('%Y-%m-%d', col)` |
 
-Esse é o coração da portabilidade: precisa ser uma **estratégia por dialeto** isolada e fortemente testada.
+This is the heart of portability: it must be an isolated and thoroughly tested **per-dialect strategy**.
 
 ---
 
-## 3. Decisões arquiteturais
+## 3. Architectural decisions
 
-| Decisão | Escolha | Justificativa |
+| Decision | Choice | Justification |
 |---|---|---|
-| Linguagem | TypeScript 5.x (strict) | Tipagem da API fluente |
-| Framework alvo | NestJS 10+ | Módulo `forRoot/forFeature` injetável |
-| Acesso a dados | **TypeORM 0.3** (`DataSource`/`SelectQueryBuilder`) | Equivalente mais direto do Eloquent no Nest |
-| Datas/locale | **Luxon** | Substitui Carbon: `DateTime`, intervalos, `toLocaleString`, nomes de meses/dias por locale |
-| Testes | **Vitest** (ou Jest) + **better-sqlite3** in-memory | Espelha a suíte SQLite do original; testes de integração reais contra Postgres/MySQL via Docker |
-| Build | **tsup** (ESM+CJS+d.ts) ou `tsc` | Dual package, tipos publicados |
-| Lint/format | ESLint + Prettier | Equivalente ao Pint |
-| Versionamento | SemVer + **Changesets** | Automatiza changelog e publish |
-| CI/CD | GitHub Actions | Matriz de dialetos + publish no npm |
+| Language | TypeScript 5.x (strict) | Fluent API typing |
+| Target framework | NestJS 10+ | Injectable `forRoot/forFeature` module |
+| Data access | **TypeORM 0.3** (`DataSource`/`SelectQueryBuilder`) | Closest equivalent to Eloquent in Nest |
+| Dates/locale | **Luxon** | Replaces Carbon: `DateTime`, intervals, `toLocaleString`, month/day names by locale |
+| Tests | **Vitest** (or Jest) + **better-sqlite3** in-memory | Mirrors the original SQLite suite; real integration tests against Postgres/MySQL via Docker |
+| Build | **tsup** (CJS+d.ts) or `tsc` | Single format, types published |
+| Lint/format | ESLint + Prettier | Equivalent to Pint |
+| Versioning | SemVer + **Changesets** | Automates changelog and publish |
+| CI/CD | GitHub Actions | Dialect matrix + npm publish |
 
-### Equivalências de conceito
+### Concept equivalences
 
 | Laravel | nestjs-metrics |
 |---|---|
 | Eloquent `Builder` / Query `Builder` | TypeORM `SelectQueryBuilder<T>` |
 | `Carbon` | `luxon.DateTime` |
-| `config('app.locale')` | opção `locale` do módulo / parâmetro |
-| Trait `HasMetrics` | Mixin/decorator `withMetrics()` ou método estático no repositório |
-| Facade | Provider injetável `MetricsService` |
-| Enum PHP | `enum`/`as const` TS |
-| Exceptions | classes que estendem Nest `BadRequestException`/custom |
+| `config('app.locale')` | `locale` option on module / parameter |
+| Trait `HasMetrics` | Mixin/decorator `withMetrics()` or static method on repository |
+| Facade | Injectable provider `MetricsService` |
+| PHP Enum | `enum`/`as const` TS |
+| Exceptions | Classes extending Nest `BadRequestException`/custom |
 
 ---
 
-## 4. Arquitetura do pacote
+## 4. Package architecture
 
-### 4.1 Camadas
+### 4.1 Layers
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  API pública (fluent)                                    │
+│  Public API (fluent)                                     │
 │  Metrics.query(qb) ─► .sum('amount').byMonth().trends()  │
 ├─────────────────────────────────────────────────────────┤
-│  Core                                                    │
-│  • MetricsBuilder   (estado fluente + orquestração)      │
-│  • AggregateRunner  (monta SELECT, executa, normaliza)   │
-│  • TrendsFormatter  (labels/data, percent, fill, group)  │
-│  • VariationsCalc   (metricsWithVariations)              │
+│  Core                                                     │
+│  • MetricsBuilder   (fluent state + orchestration)        │
+│  • AggregateRunner  (builds SELECT, executes, normalizes) │
+│  • TrendsFormatter  (labels/data, percent, fill, group)   │
+│  • VariationsCalc   (metricsWithVariations)               │
 ├─────────────────────────────────────────────────────────┤
-│  Dialect Strategy        │  Date/Locale Service          │
-│  • PostgresDialect       │  • PeriodResolver (janelas)   │
-│  • MySqlDialect          │  • LabelFormatter (luxon)     │
-│  • SqliteDialect         │  • PeriodSeriesGenerator      │
-│  (interface SqlDialect)  │    (datas faltantes)          │
+│  Dialect Strategy        │  Date/Locale Service           │
+│  • PostgresDialect       │  • PeriodResolver (windows)    │
+│  • MySqlDialect          │  • LabelFormatter (luxon)      │
+│  • SqliteDialect         │  • PeriodSeriesGenerator       │
+│  (interface SqlDialect)  │    (missing dates)             │
 ├─────────────────────────────────────────────────────────┤
 │  Data Adapter                                            │
-│  • TypeOrmAdapter (SelectQueryBuilder, driver detect)    │
-│  (interface QueryAdapter ─ portas p/ futuros ORMs)       │
+│  • TypeOrmAdapter (SelectQueryBuilder, driver detect)     │
+│  (interface QueryAdapter ─ ports for future ORMs)         │
 ├─────────────────────────────────────────────────────────┤
 │  NestJS Integration                                      │
-│  • MetricsModule.forRoot({ dataSource, locale })         │
-│  • MetricsService (provider injetável)                   │
+│  • MetricsModule.forRoot({ dataSource, locale })          │
+│  • MetricsService (injectable provider)                   │
 └─────────────────────────────────────────────────────────┘
 ```
 
-### 4.2 Componentes principais
+### 4.2 Core components
 
-- **`MetricsBuilder`** — guarda o estado fluente (período, aggregate, coluna, label, count, year/month/day/week, flags de fill/group). Cada método `byMonth()/sum()/...` retorna `this`. É **imutável-friendly**: `clone()` para `metricsWithVariations`.
-- **`SqlDialect` (interface)** — `periodExpr(part, col)`, `dateExpr(col)`, `weekOfYear()`, etc. Implementações por driver. Selecionada via `adapter.getDriver()`.
-- **`QueryAdapter` (interface)** — abstrai o ORM: `clone()`, `selectRaw(expr, bindings)`, `whereYear/Month/Between`, `groupBy`, `get()/first()`, `getDriver()`, `getTable()`. `TypeOrmAdapter` é a única impl. da v1.
-- **`PeriodResolver`** — porta de `getDayPeriod/getWeekPeriod/getMonthPeriod` (cálculo das janelas `[início, fim]`).
-- **`LabelFormatter`** — porta de `formatDate`/`formatPeriod` para labels legíveis (Luxon + locale).
-- **`PeriodSeriesGenerator`** — porta de `getMonthsData/getDaysData/...` para `fillMissingData`.
-- **`TrendsFormatter`** — porta de `formatTrends`, `populateMissingData*`, `trendsWithMergedData`.
+- **`MetricsBuilder`** — holds fluent state (period, aggregate, column, label, count, year/month/day/week, fill/group flags). Each method `byMonth()/sum()/...` returns `this`. It is **immutable-friendly**: `clone()` for `metricsWithVariations`.
+- **`SqlDialect` (interface)** — `periodExpr(part, col)`, `dateExpr(col)`, `weekOfYear()`, etc. Implementations per driver. Selected via `adapter.getDriver()`.
+- **`QueryAdapter` (interface)** — abstracts the ORM: `clone()`, `selectRaw(expr, bindings)`, `whereYear/Month/Between`, `groupBy`, `get()/first()`, `getDriver()`, `getTable()`. `TypeOrmAdapter` is the only impl in v1.
+- **`PeriodResolver`** — port of `getDayPeriod/getWeekPeriod/getMonthPeriod` (window calculation `[start, end]`).
+- **`LabelFormatter`** — port of `formatDate`/`formatPeriod` for readable labels (Luxon + locale).
+- **`PeriodSeriesGenerator`** — port of `getMonthsData/getDaysData/...` for `fillMissingData`.
+- **`TrendsFormatter`** — port of `formatTrends`, `populateMissingData*`, `trendsWithMergedData`.
 
-### 4.3 Estrutura de pastas
+### 4.3 Folder structure
 
 ```
 nestjs-metrics/
 ├─ src/
-│  ├─ index.ts                    # barrel exports públicos
+│  ├─ index.ts                    # public barrel exports
 │  ├─ metrics.builder.ts          # MetricsBuilder (fluent core)
 │  ├─ metrics.module.ts           # NestJS MetricsModule.forRoot/forFeature
-│  ├─ metrics.service.ts          # provider injetável
+│  ├─ metrics.service.ts          # injectable provider
 │  ├─ enums/
 │  │  ├─ aggregate.enum.ts
 │  │  └─ period.enum.ts
@@ -204,7 +204,7 @@ nestjs-metrics/
 │  │  ├─ invalid-period.exception.ts
 │  │  ├─ invalid-date-format.exception.ts
 │  │  └─ invalid-variations-count.exception.ts
-│  └─ types.ts                    # TrendsResult, MetricsResult, opções
+│  └─ types.ts                    # TrendsResult, MetricsResult, options
 ├─ test/
 │  ├─ helpers/datasource.ts       # sqlite :memory: + seed orders
 │  ├─ metrics.spec.ts
@@ -212,7 +212,7 @@ nestjs-metrics/
 │  ├─ variations.spec.ts
 │  ├─ fill-missing.spec.ts
 │  ├─ group-data.spec.ts
-│  ├─ dialects.spec.ts            # integração Postgres/MySQL (Docker)
+│  ├─ dialects.spec.ts            # Postgres/MySQL integration (Docker)
 │  └─ exceptions.spec.ts
 ├─ docs/ARCHITECTURE.md
 ├─ package.json
@@ -226,14 +226,14 @@ nestjs-metrics/
 
 ---
 
-## 5. Desenho da API pública
+## 5. Public API design
 
-### 5.1 Standalone (espelha `LaravelMetrics::query`)
+### 5.1 Standalone (mirrors `LaravelMetrics::query`)
 
 ```ts
 import { Metrics } from 'nestjs-metrics';
 
-// trend de soma de amount por mês do ano corrente
+// amount sum trend by month for the current year
 const result = Metrics
   .query(orderRepo.createQueryBuilder('orders'))
   .sum('amount')
@@ -248,7 +248,7 @@ const total = Metrics
   .metrics(); // => number
 ```
 
-> Como TypeORM é assíncrono, os terminais retornam `Promise`: `await ...trends()`, `await ...metrics()`. Essa é a principal diferença vs. o PHP síncrono.
+> Since TypeORM is async, terminal methods return `Promise`: `await ...trends()`, `await ...metrics()`. This is the main difference vs. synchronous PHP.
 
 ### 5.2 Via NestJS module + service
 
@@ -275,15 +275,15 @@ class DashboardService {
 }
 ```
 
-### 5.3 Atalho a partir da entidade (equivalente ao trait)
+### 5.3 Shortcut from the entity (equivalent to the trait)
 
 ```ts
-// helper que injeta .metrics() no repositório
-const builder = metricsFor(orderRepo); // QueryBuilder pré-configurado
+// helper that injects .metrics() into the repository
+const builder = metricsFor(orderRepo); // Pre-configured QueryBuilder
 await builder.countByMonth().trends();
 ```
 
-### 5.4 Tipos de retorno
+### 5.4 Return types
 
 ```ts
 type TrendsResult = { labels: (string | number)[]; data: number[] };
@@ -300,108 +300,108 @@ type VariationResult = {
 
 ---
 
-## 6. Detalhes de portabilidade (riscos técnicos)
+## 6. Portability details (technical risks)
 
-### 6.1 Síncrono → assíncrono
-O PHP executa queries inline. Em TypeORM, `getRawOne/getRawMany` são `async`. **Decisão:** apenas os métodos terminais (`metrics`, `trends`, `metricsWithVariations`) são `async`; todo o builder fluente permanece síncrono e encadeável.
+### 6.1 Synchronous → asynchronous
+PHP executes queries inline. In TypeORM, `getRawOne/getRawMany` are `async`. **Decision:** only terminal methods (`metrics`, `trends`, `metricsWithVariations`) are `async`; the entire fluent builder remains synchronous and chainable.
 
 ### 6.2 `selectRaw` + bindings
-O original usa `selectRaw('avg(col) as data, ...')` e bindings posicionais (`?`) no `groupData`. TypeORM usa `addSelect(expr, alias)` + parâmetros nomeados (`:p0`). O `TypeOrmAdapter` traduz `?` posicional → parâmetros nomeados gerados.
+The original uses `selectRaw('avg(col) as data, ...')` and positional bindings (`?`) in `groupData`. TypeORM uses `addSelect(expr, alias)` + named parameters (`:p0`). `TypeOrmAdapter` translates positional `?` → generated named parameters.
 
-### 6.3 Detecção de driver
-`builder.getConnection().getDriverName()` → `dataSource.options.type` (`postgres`/`mysql`/`mariadb`/`sqlite`/`better-sqlite3`). `DialectFactory.for(type)` retorna a estratégia certa; `mariadb` mapeia para `MySqlDialect`.
+### 6.3 Driver detection
+`builder.getConnection().getDriverName()` → `dataSource.options.type` (`postgres`/`mysql`/`mariadb`/`sqlite`/`better-sqlite3`). `DialectFactory.for(type)` returns the correct strategy; `mariadb` maps to `MySqlDialect`.
 
-### 6.4 Abstração de ORM — **extraída (Decisão 1, cumprida)**
-A interface foi extraída quando o 2º backend surgiu, não desenhada especulativamente. O core é **dual-mode** por trás de `QueryBackend`: o builder monta um `QueryPlan` backend-neutro (select/where/group/order + params `:name`), e um backend o renderiza:
-- **`TypeOrmBackend`** — o caminho original, sobre o `SelectQueryBuilder`, com comportamento e escaping do driver **inalterados**.
-- **`ExecutorBackend`** — monta um SQL cru parametrizado e o executa via um `DataSource` agnóstico `(sql, params) => rows` (Prisma/Drizzle/qualquer driver). Placeholders `:name` viram posicionais (`$n` no Postgres, `?` no MySQL/SQLite); tipos crus do driver passam por `normalize()` no boundary.
+### 6.4 ORM abstraction — **extracted (Decision 1, fulfilled)**
+The interface was extracted when the 2nd backend emerged, not designed speculatively. The core is **dual-mode** behind `QueryBackend`: the builder assembles a backend-neutral `QueryPlan` (select/where/group/order + `:name` params), and a backend renders it:
+- **`TypeOrmBackend`** — the original path, over `SelectQueryBuilder`, with driver behavior and escaping **unchanged**.
+- **`ExecutorBackend`** — assembles raw parameterized SQL and executes it via an agnostic `DataSource` `(sql, params) => rows` (Prisma/Drizzle/any driver). `:name` placeholders become positional (`$n` in Postgres, `?` in MySQL/SQLite); raw driver types go through `normalize()` at the boundary.
 
-A `SqlDialect` strategy existe desde o dia 1 (os três dialetos coexistem) e ganhou `escapeId`/`placeholder` para o modo executor.
+The `SqlDialect` strategy has existed since day 1 (the three dialects coexist) and gained `escapeId`/`placeholder` for executor mode.
 
-### 6.7 Segurança de identificadores (Decisão 2)
-`column`/`table`/`dateColumn`/`labelColumn` são interpolados crus no SQL (herança do original). Como é uma lib pública e parâmetros nomeados **não** protegem identificadores, todo identificador passa por `assertSafeIdentifier()` (allowlist `^[a-zA-Z_][a-zA-Z0-9_.]*$`) + escape (driver no `TypeOrmBackend`, `dialect.escapeId` no `ExecutorBackend`) antes de entrar no SQL. Valores fluem **somente** como parâmetros ligados. Documenta-se que o ideal continua sendo input controlado pelo dev.
+### 6.7 Identifier safety (Decision 2)
+`column`/`table`/`dateColumn`/`labelColumn` are interpolated raw into SQL (inherited from the original). Since this is a public library and named parameters do **not** protect identifiers, every identifier goes through `assertSafeIdentifier()` (allowlist `^[a-zA-Z_][a-zA-Z0-9_.]*$`) + escape (driver in `TypeOrmBackend`, `dialect.escapeId` in `ExecutorBackend`) before entering SQL. Values flow **only** as bound parameters. The ideal is still dev-controlled input.
 
-**Escape hatch `from` (modo executor):** `ExecutorSpec.from` aceita um fragmento `FROM` cru (para joins/subqueries que o `{ table }` estruturado não expressa). Esse fragmento é interpolado **sem** sanitização — é uma **superfície confiável do dev**, explicitamente não para input do usuário final. É o único ponto fora da regra de allowlist acima, registrado aqui de propósito.
+**Escape hatch `from` (executor mode):** `ExecutorSpec.from` accepts a raw `FROM` fragment (for joins/subqueries that structured `{ table }` cannot express). This fragment is interpolated **without** sanitization — it is a **trusted dev surface**, explicitly not for end-user input. This is the only point outside the allowlist rule above, noted here on purpose.
 
-### 6.8 Fuso horário (Decisões 9 e 10)
-Opção `timezone` (IANA) na chamada/`forRoot`/`forFeature`. Conversão por dialeto: Postgres `col AT TIME ZONE`, MySQL `CONVERT_TZ()` (**exige timezone tables carregadas** no contêiner — senão retorna NULL silencioso), SQLite **faz o bucketing em JS** (Luxon, DST-correto), que serve de oráculo para validar o SQL dos outros dois. Default `UTC`.
+### 6.8 Timezone (Decisions 9 and 10)
+`timezone` option (IANA) on call/`forRoot`/`forFeature`. Conversion per dialect: Postgres `col AT TIME ZONE`, MySQL `CONVERT_TZ()` (**requires timezone tables loaded** in the container — otherwise silently returns NULL), SQLite **does bucketing in JS** (Luxon, DST-correct), which serves as oracle to validate the SQL of the other two. Default `UTC`.
 
-### 6.5 Locale / nomes de datas
-Carbon `->locale(x)->monthName` → Luxon `DateTime.fromObject({...},{locale}).toLocaleString({ month: 'long' })`. Cobrir paridade de nomes em `en` e `pt-BR` com snapshots de teste. Atenção a diferenças de numeração de semana (ISO vs. Carbon `%W`).
+### 6.5 Locale / date names
+Carbon `->locale(x)->monthName` → Luxon `DateTime.fromObject({...},{locale}).toLocaleString({ month: 'long' })`. Cover name parity in `en` and `pt-BR` with test snapshots. Watch for week numbering differences (ISO vs. Carbon `%W`).
 
-### 6.6 Decimais
-SQLite/Postgres podem retornar agregados como string. Normalizar via `Number()`/`parseFloat` no `AggregateRunner`, como o `(float)` do PHP.
+### 6.6 Decimals
+SQLite/Postgres may return aggregates as strings. Normalize via `Number()`/`parseFloat` in `AggregateRunner`, like PHP's `(float)` cast.
 
 ---
 
-## 7. Plano de implementação
+## 7. Implementation plan
 
-Abordagem **TDD** (red-green-refactor), portando a suíte de testes do original como **spec executável** — cada teste PHP vira um teste Vitest, garantindo paridade observável.
+**TDD** approach (red-green-refactor), porting the original test suite as **executable spec** — each PHP test becomes a Vitest test, ensuring observable parity.
 
-### Fase 0 — Bootstrap (0,5 dia)
+### Phase 0 — Bootstrap (0.5 day)
 - `package.json`, `tsconfig` strict, ESLint/Prettier, tsup, Vitest.
-- Helper de teste: `DataSource` SQLite in-memory + tabela `orders` (`id, status, amount, created_at, updated_at`) e seed — espelha `tests/TestCase.php`.
-- CI mínima (lint + test) verde.
+- Test helper: in-memory SQLite `DataSource` + `orders` table (`id, status, amount, created_at, updated_at`) and seed — mirrors `tests/TestCase.php`.
+- Minimal CI (lint + test) green.
 
-### Fase 1 — Núcleo: metrics() em SQLite (1,5 dia)
+### Phase 1 — Core: metrics() on SQLite (1.5 days)
 - `enums`, `exceptions`, `QueryAdapter` + `TypeOrmAdapter`, `SqliteDialect`.
-- `MetricsBuilder` com aggregates + `byDay/Week/Month/Year` + `metrics()`.
-- Porta de `MetricsTest.php`. **Saída:** `metrics()` correto para todos os aggregates/períodos em SQLite.
+- `MetricsBuilder` with aggregates + `byDay/Week/Month/Year` + `metrics()`.
+- Port `MetricsTest.php`. **Output:** correct `metrics()` for all aggregates/periods on SQLite.
 
-### Fase 2 — trends() + labels/locale (2 dias)
+### Phase 2 — trends() + labels/locale (2 days)
 - `LabelFormatter` (Luxon), `TrendsFormatter`, `PeriodResolver`.
 - `trends()`, `trends(true)` (percent), `labelColumn`, `dateColumn`, `between`/`from`, `forX`.
-- Porta de `TrendsTest.php`. **Saída:** trends com nomes de meses/dias traduzidos.
+- Port `TrendsTest.php`. **Output:** trends with translated month/day names.
 
-### Fase 3 — fillMissingData + groupData + groupBy (2 dias)
+### Phase 3 — fillMissingData + groupData + groupBy (2 days)
 - `PeriodSeriesGenerator`, `populateMissingData*`, `trendsWithMergedData`, `groupBy*`.
-- Porta de `FillMissingDataTest.php` e `GroupDataTest.php`.
+- Port `FillMissingDataTest.php` and `GroupDataTest.php`.
 
-### Fase 4 — metricsWithVariations + exceções (1 dia)
-- `VariationsCalculator`, `clone()` do builder, validações.
-- Porta de `MetricsWithVariationsTest.php` e `ExceptionsTest.php`.
+### Phase 4 — metricsWithVariations + exceptions (1 day)
+- `VariationsCalculator`, `clone()` on builder, validations.
+- Port `MetricsWithVariationsTest.php` and `ExceptionsTest.php`.
 
-### Fase 5 — Multi-dialeto (1,5 dia)
+### Phase 5 — Multi-dialect (1.5 days)
 - `PostgresDialect`, `MySqlDialect`, `DialectFactory`.
-- `test/dialects.spec.ts` rodando contra Postgres e MySQL reais via **Testcontainers/docker-compose** na CI (matriz).
+- `test/dialects.spec.ts` running against real Postgres and MySQL via **Testcontainers/docker-compose** in CI (matrix).
 
-### Fase 6 — Integração NestJS (1 dia)
+### Phase 6 — NestJS integration (1 day)
 - `MetricsModule.forRoot/forFeature`, `MetricsService`, helper `metricsFor(repo)`.
-- Teste de integração: `Test.createTestingModule` resolvendo `MetricsService`.
+- Integration test: `Test.createTestingModule` resolving `MetricsService`.
 
-### Fase 7 — DX, docs e exemplos (1 dia)
-- README com a mesma estrutura de exemplos do original (tabela de combinações).
-- JSDoc/TSDoc na API pública, exemplos `examples/` com Chart.js payload.
+### Phase 7 — DX, docs and examples (1 day)
+- README with the same example structure as the original (combinations table).
+- JSDoc/TSDoc on public API, `examples/` with Chart.js payload.
 
-**Estimativa total:** ~10,5 dias úteis (1 dev).
+**Total estimate:** ~10.5 business days (1 dev).
 
-### 7.1 Critérios de "pronto" (Definition of Done)
-- Todos os testes portados passam (paridade de saída com o original em `en`).
-- Matriz CI verde em SQLite + Postgres + MySQL.
-- Cobertura ≥ 85% no core (`dialects`, `dates`, `formatting`).
-- `npm pack` gera ESM+CJS+`.d.ts`; `tsc --noEmit` limpo no projeto consumidor.
-- README + CHANGELOG + exemplos.
+### 7.1 Definition of Done
+- All ported tests pass (output parity with the original in `en`).
+- Green CI matrix on SQLite + Postgres + MySQL.
+- ≥ 85% coverage on core (`dialects`, `dates`, `formatting`).
+- `npm pack` produces d.ts; `tsc --noEmit` clean on consumer project.
+- README + CHANGELOG + examples.
 
 ---
 
-## 8. Estratégia de testes
+## 8. Testing strategy
 
-| Camada | Tipo | Ferramenta |
+| Layer | Type | Tool |
 |---|---|---|
-| Builder/formatters | Unit | Vitest (puro, sem DB) |
-| metrics/trends/fill/group | Integração leve | Vitest + SQLite `:memory:` |
-| Dialetos Postgres/MySQL | Integração real | Testcontainers / docker-compose |
-| Módulo NestJS | Integração | `@nestjs/testing` |
-| Paridade de SQL | Snapshot | snapshot da string SQL por dialeto |
+| Builder/formatters | Unit | Vitest (pure, no DB) |
+| metrics/trends/fill/group | Light integration | Vitest + SQLite `:memory:` |
+| Postgres/MySQL dialects | Real integration | Testcontainers / docker-compose |
+| NestJS module | Integration | `@nestjs/testing` |
+| SQL parity | Snapshot | SQL string snapshot per dialect |
 | Locale | Snapshot | `en` + `pt-BR` |
 
-**Princípio:** cada teste do `tests/` PHP tem um espelho. Divergências intencionais (ex.: async) ficam documentadas no teto do arquivo de spec.
+**Principle:** each PHP `tests/` test has a mirror. Intentional divergences (e.g., async) are documented at the top of the spec file.
 
 ---
 
-## 9. Empacotamento e build
+## 9. Packaging and build
 
-`package.json` (essencial):
+`package.json` (essential):
 
 ```jsonc
 {
@@ -423,25 +423,25 @@ Abordagem **TDD** (red-green-refactor), portando a suíte de testes do original 
 }
 ```
 
-- **peerDependencies** para Nest/TypeORM (não duplicar a instância do consumidor).
-- **Build CJS-first + types** via **tsup** (Decisão 7): formato único, sem dual-package hazard nos enums/exceções. Promoção a dual/ESM fica para uma major futura.
+- **peerDependencies** for Nest/TypeORM (don't duplicate the consumer's instance).
+- **CJS-first build + types** via **tsup** (Decision 7): single format, no dual-package hazard in enums/exceptions. Promotion to dual/ESM for a future major.
 - `prepublishOnly`: `lint && test && build`.
 
 ---
 
-## 10. CI/CD e publicação ("subida")
+## 10. CI/CD and publishing
 
-### 10.1 `ci.yml` (PR e push)
-- Matriz: Node 18/20/22 × dialeto {sqlite, postgres(service), mysql(service)}.
-- Passos: install → lint → typecheck → test (com containers de DB) → build → `npm pack --dry-run`.
+### 10.1 `ci.yml` (PR and push)
+- Matrix: Node 18/20/22 × dialect {sqlite, postgres(service), mysql(service)}.
+- Steps: install → lint → typecheck → test (with DB containers) → build → `npm pack --dry-run`.
 
-### 10.2 `release.yml` (publicação)
-- **Changesets**: PRs incluem um changeset; merge na `main` abre/atualiza o "Version Packages" PR.
-- Ao mergear o PR de versão: `changeset publish` → publica no **npm** (token `NPM_TOKEN`) e cria tag/GitHub Release com changelog.
+### 10.2 `release.yml` (publishing)
+- **Changesets**: PRs include a changeset; merge to `main` opens/updates the "Version Packages" PR.
+- When the version PR is merged: `changeset publish` → publishes to **npm** (token `NPM_TOKEN`) and creates tag/GitHub Release with changelog.
 - Provenance: `npm publish --provenance` (supply-chain).
 
 ```yaml
-# release.yml (resumo)
+# release.yml (summary)
 on: { push: { branches: [main] } }
 jobs:
   release:
@@ -455,41 +455,41 @@ jobs:
         env: { NPM_TOKEN: ${{ secrets.NPM_TOKEN }}, GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} }
 ```
 
-### 10.3 Versionamento
-- **SemVer.** v0.x enquanto a API estabiliza; `1.0.0` ao atingir paridade total + dialetos validados.
-- Branch `main` protegida; releases só via PR de changeset.
+### 10.3 Versioning
+- **SemVer.** v0.x while the API stabilizes; `1.0.0` when full parity + validated dialects is reached.
+- `main` branch protected; releases only via changeset PR.
 
-### 10.4 Checklist de primeira publicação
-1. Reservar o nome `nestjs-metrics` no npm (`npm view nestjs-metrics`).
-2. Configurar `NPM_TOKEN` (automation) nos secrets do repo.
-3. `LICENSE` (MIT, como o original), `README`, `CHANGELOG` inicial.
-4. `npm publish --dry-run` local para validar `files`/`exports`.
+### 10.4 First publishing checklist
+1. Reserve the name `nestjs-metrics` on npm (`npm view nestjs-metrics`).
+2. Configure `NPM_TOKEN` (automation) in the repo secrets.
+3. `LICENSE` (MIT, like the original), `README`, initial `CHANGELOG`.
+4. `npm publish --dry-run` locally to validate `files`/`exports`.
 5. Tag `v0.1.0` + GitHub Release.
 
 ---
 
-## 11. Riscos e mitigação
+## 11. Risks and mitigation
 
-| Risco | Impacto | Mitigação |
+| Risk | Impact | Mitigation |
 |---|---|---|
-| Diferenças sutis de SQL entre dialetos (semana ISO vs `%W`) | Trends incorretos | Testes de integração reais por dialeto + snapshots de SQL |
-| Paridade de locale (nomes de meses) | Labels divergem do original | Snapshots em `en`/`pt-BR`; documentar fonte (Luxon ICU) |
-| Async quebra ergonomia esperada | DX | Documentar claramente; só terminais são `async` |
-| Bindings posicionais → nomeados (groupData) | SQL inválido/injeção | Adapter centraliza a tradução; testes de injeção |
-| Acoplamento a TypeORM | Limita adoção | `QueryAdapter` isola o ORM desde a v1 |
-| Agregados como string (driver) | Tipos errados | Normalização numérica central |
+| Subtle SQL differences between dialects (ISO week vs `%W`) | Incorrect trends | Real integration tests per dialect + SQL snapshots |
+| Locale parity (month names) | Labels diverge from original | Snapshots in `en`/`pt-BR`; document source (Luxon ICU) |
+| Async breaks expected ergonomics | DX | Document clearly; only terminals are `async` |
+| Positional → named bindings (groupData) | Invalid SQL/injection | Adapter centralizes translation; injection tests |
+| Tight coupling to TypeORM | Limits adoption | `QueryAdapter` isolates the ORM from v1 |
+| Aggregates as strings (driver) | Wrong types | Central numeric normalization |
 
 ---
 
-## 12. Mapa de paridade (rastreabilidade)
+## 12. Parity map (traceability)
 
-| Original (PHP) | Porta (TS) | Fase |
+| Original (PHP) | Port (TS) | Phase |
 |---|---|---|
 | `LaravelMetrics::query` / aggregates / `byX` | `MetricsBuilder` | 1–2 |
 | `DatesFunctions::formatPeriod/formatDateColumn` | `dialects/*` | 1,5 |
 | `formatDate` / locale | `LabelFormatter` | 2 |
-| `getXPeriod` (janelas) | `PeriodResolver` | 2–3 |
-| `getXData` (séries) | `PeriodSeriesGenerator` | 3 |
+| `getXPeriod` (windows) | `PeriodResolver` | 2–3 |
+| `getXData` (series) | `PeriodSeriesGenerator` | 3 |
 | `formatTrends`/`populateMissingData*`/`trendsWithMergedData` | `TrendsFormatter` | 2–3 |
 | `metricsWithVariations` | `VariationsCalculator` | 4 |
 | `HasMetrics` trait | `metricsFor(repo)` | 6 |
@@ -498,16 +498,16 @@ jobs:
 
 ---
 
-## 13. Roadmap pós-v1
+## 13. Post-v1 roadmap
 
-- **App demo NestJS** (monorepo pnpm/Nx) com endpoints REST de dashboard — equivalente ao `laravel-metrics-demo`.
-- Adapters **Prisma** e **Knex/Drizzle** — via **extração** da interface a partir de 2 casos reais (Decisão 1), não pré-construída.
-- Cache opcional de queries (`@nestjs/cache-manager`).
-- ~~Suporte a fuso horário~~ — **antecipado para a v0.1** (Decisões 9/10).
-- Helpers de saída prontos para Chart.js/ApexCharts/Recharts.
+- **NestJS demo app** (pnpm/Nx monorepo) with REST dashboard endpoints — equivalent to `laravel-metrics-demo`.
+- **Prisma** and **Knex/Drizzle** adapters — via **extraction** of the interface from 2 real cases (Decision 1), not pre-built.
+- Optional query caching (`@nestjs/cache-manager`).
+- ~~Timezone support~~ — **moved up to v0.1** (Decisions 9/10).
+- Output helpers ready for Chart.js/ApexCharts/Recharts.
 
 ---
 
-## 14. Resumo executivo
+## 14. Executive summary
 
-Porta fiel do `laravel-metrics` como **lib npm + módulo NestJS** sobre **TypeORM**, com **Luxon** para datas/locale e **estratégias de dialeto** isoladas e testadas contra bancos reais. Entrega guiada por **TDD com a suíte do original como espec**, publicada via **Changesets + GitHub Actions** no npm. ~10,5 dias para v0.1 com paridade funcional; `1.0.0` após validação multi-dialeto e estabilização da API.
+Faithful port of `laravel-metrics` as an **npm lib + NestJS module** on top of **TypeORM**, with **Luxon** for dates/locale and **dialect strategies** isolated and tested against real databases. Delivery guided by **TDD with the original suite as spec**, published via **Changesets + GitHub Actions** to npm. ~10.5 days for v0.1 with functional parity; `1.0.0` after multi-dialect validation and API stabilization.

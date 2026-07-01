@@ -72,7 +72,7 @@ original Laravel library are in [DIVERGENCES.md](./DIVERGENCES.md); architecture
 
 A comprehensive guide covering all features, queries, filters and usage patterns
 for the NestJS module is available at
-[`docs/GUIA-NESTJS.md`](./docs/GUIA-NESTJS.md) (Portuguese) and on the
+[`docs/NESTJS-GUIDE.md`](./docs/NESTJS-GUIDE.md) and on the
 [NestJ ReadMe](https://nestjs-metrics.readme.io/docs/getting-started) (English).
 
 ## API reference
