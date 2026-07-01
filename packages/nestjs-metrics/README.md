@@ -57,6 +57,11 @@ await Metrics.query(orderRepo.createQueryBuilder('orders')).sum('amount').byMont
 
 The full fluent API lives in [`nestjs-metrics-core`](../core).
 
+## NestJS guide
+
+For a comprehensive walkthrough of all features, queries, filters and usage
+patterns, check the [NestJ ReadMe guide](https://nestjs-metrics.readme.io/docs/getting-started).
+
 ## License
 
 MIT
